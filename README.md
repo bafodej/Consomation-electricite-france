@@ -1,4 +1,4 @@
-# Consommation Électricité France - RTE Data Analysis
+# Consommation Électricité France - RTE Data Analysis/ML
 
 ## 🎯 Objectif
 Analyse conso électrique France (RTE éCO2mix) + impact IA/data centers (vidéos).
