@@ -8,6 +8,14 @@ Analyse conso électrique France (RTE éCO2mix) + impact IA/data centers (vidéo
 - `data/conso_recent_2026.csv`: Prévisions Jan 2026
 - 95% bas carbone 2024 (536 TWh)[web:30]
 
+
+├── data/          # CSV RTE + plots
+├── front/         # Dash/Streamlit viz
+├── ml/            # Modèles prédiction conso
+├── src/           # Scripts analyse/API
+└── requirements.txt
+
+
 ## 🚀 Quickstart
 ```bash
 git clone https://github.com/bafodej/Consomation-electricite-france
