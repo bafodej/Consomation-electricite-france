@@ -1,0 +1,47 @@
+# Fichiers à exclure de l'image Docker
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs et tests
+logs/
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Documentation
+*.md
+docs/
+
+# Data
+data/*.csv
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
