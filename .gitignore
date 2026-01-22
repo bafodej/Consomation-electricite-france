@@ -34,3 +34,7 @@ mlartifacts/
 .coverage
 htmlcov/
 coverage.xml
+
+# Documentation - ignorer tous les .md sauf README.md
+*.md
+!README.md
