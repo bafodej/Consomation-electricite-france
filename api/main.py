@@ -1,29 +1,159 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 import pandas as pd
 import os
+import sys
+from pathlib import Path
 from sqlalchemy import create_engine
 from typing import Optional
+import time
 
-app = FastAPI(title="RTE API")
+# Ajouter le répertoire parent au path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.logger import setup_logging, get_logger
+
+# Configuration du logging - RNCP C20
+setup_logging(log_dir="logs")
+logger = get_logger(__name__)
+
+app = FastAPI(
+    title="RTE Consommation API",
+    description="API pour consulter les données de consommation électrique française",
+    version="1.0.0"
+)
+
+# Configuration base de données
 db_path = os.path.abspath('database/rte_consommation.db')
 engine = create_engine(f'sqlite:///{db_path}')
+logger.info(f"API démarrée avec base de données: {db_path}")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Middleware pour logger toutes les requêtes - RNCP C20"""
+    start_time = time.time()
+    request_id = f"{int(start_time * 1000)}"
+
+    logger.info(
+        f"Requête entrante: {request.method} {request.url.path}",
+        extra={
+            'request_id': request_id,
+            'method': request.method,
+            'endpoint': request.url.path,
+            'client_host': request.client.host if request.client else 'unknown'
+        }
+    )
+
+    try:
+        response = await call_next(request)
+        duration_ms = (time.time() - start_time) * 1000
+
+        logger.info(
+            f"Requête terminée: {request.method} {request.url.path} - {response.status_code}",
+            extra={
+                'request_id': request_id,
+                'endpoint': request.url.path,
+                'status_code': response.status_code,
+                'duration_ms': round(duration_ms, 2)
+            }
+        )
+
+        return response
+
+    except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        logger.error(
+            f"Erreur lors du traitement: {request.method} {request.url.path}",
+            extra={
+                'request_id': request_id,
+                'endpoint': request.url.path,
+                'duration_ms': round(duration_ms, 2)
+            },
+            exc_info=True
+        )
+        raise
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Gestionnaire global d'exceptions - RNCP C21"""
+    logger.error(
+        f"Exception non gérée: {str(exc)}",
+        extra={
+            'endpoint': request.url.path,
+            'method': request.method
+        },
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Erreur interne du serveur",
+            "message": "Une erreur s'est produite lors du traitement de votre requête"
+        }
+    )
+
 
 @app.get("/")
 def root():
-    count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0]['cnt']
-    return {"status": "OK", "lignes": int(count)}
+    """Endpoint racine - vérification de l'état de l'API"""
+    try:
+        count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0]['cnt']
+        logger.info(f"Vérification santé API: {count} enregistrements en base")
+        return {"status": "OK", "lignes": int(count)}
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification de santé: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur de connexion à la base de données")
+
 
 @app.get("/conso")
 def conso(limit: Optional[int] = 24):
-    df = pd.read_sql(f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine)
-    return df.to_dict('records')
+    """Récupérer les données de consommation récentes"""
+    try:
+        if limit <= 0:
+            logger.warning(f"Limite invalide demandée: {limit}")
+            raise HTTPException(status_code=400, detail="La limite doit être supérieure à 0")
+
+        if limit > 1000:
+            logger.warning(f"Limite trop élevée demandée: {limit}, limitée à 1000")
+            limit = 1000
+
+        df = pd.read_sql(f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine)
+        logger.info(f"Récupération de {len(df)} enregistrements de consommation")
+        return df.to_dict('records')
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des données: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération des données")
+
 
 @app.get("/stats")
 def stats():
-    stats = pd.read_sql("SELECT AVG(mw_conso) m, MAX(mw_conso) p, MIN(mw_conso) c FROM consommation", engine).iloc[0]
-    return {"moyenne": round(stats.m), "pic": round(stats.p), "creux": round(stats.c)}
+    """Statistiques globales de consommation"""
+    try:
+        stats_df = pd.read_sql(
+            "SELECT AVG(mw_conso) m, MAX(mw_conso) p, MIN(mw_conso) c FROM consommation",
+            engine
+        ).iloc[0]
+
+        result = {
+            "moyenne": round(stats_df.m),
+            "pic": round(stats_df.p),
+            "creux": round(stats_df.c)
+        }
+
+        logger.info(f"Statistiques calculées: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul des statistiques: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur lors du calcul des statistiques")
+
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("Démarrage du serveur uvicorn sur port 8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)

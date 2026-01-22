@@ -20,4 +20,17 @@ env/
 .DS_Store
 Thumbs.db
 .env
-.env
+
+# Logs - RNCP C20
+logs/
+*.log
+
+# MLflow - RNCP C11, C13
+mlruns/
+mlartifacts/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
