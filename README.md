@@ -212,8 +212,7 @@ Pipeline GitHub Actions automatique sur chaque push :
 ## Auteur
 
 **Bafodé Jaiteh**
-- GitHub : [@bafodej](https://github.com/bafodej)
-- Email : bafode.jaiteh4@gmail.com
+
 
 ---
 
