@@ -1,6 +1,5 @@
 """
 Tests automatisés pour l'API FastAPI
-RNCP C12: Tests automatisés des services
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -91,7 +90,7 @@ class TestAPIValidation:
 
 
 class TestAPISecurity:
-    """Tests de sécurité basiques - RNCP C17"""
+    """Tests de sécurité basiques"""
 
     def test_sql_injection_attempt(self):
         """Test protection contre injection SQL basique"""

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.logger import setup_logging, get_logger
 
-# Configuration du logging - RNCP C20
+# Configuration du logging
 setup_logging(log_dir="logs")
 logger = get_logger(__name__)
 
@@ -31,7 +31,7 @@ logger.info(f"API démarrée avec base de données: {db_path}")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Middleware pour logger toutes les requêtes - RNCP C20"""
+    """Middleware pour logger toutes les requêtes"""
     start_time = time.time()
     request_id = f"{int(start_time * 1000)}"
 
@@ -77,7 +77,7 @@ async def log_requests(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Gestionnaire global d'exceptions - RNCP C21"""
+    """Gestionnaire global d'exceptions"""
     logger.error(
         f"Exception non gérée: {str(exc)}",
         extra={

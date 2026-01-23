@@ -1,7 +1,5 @@
 version: '3.8'
 
-# RNCP C19: Déploiement continu de l'application avec Docker
-
 services:
   api:
     build:

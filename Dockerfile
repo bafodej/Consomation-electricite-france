@@ -1,5 +1,4 @@
 # Dockerfile pour l'API RTE Consommation
-# RNCP C19: Déploiement continu de l'application
 
 FROM python:3.12-slim
 

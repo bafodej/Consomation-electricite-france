@@ -1,7 +1,5 @@
 """
 Entraînement du modèle de prédiction avec MLflow tracking
-RNCP C11: Assurer le suivi et monitoring des modèles
-RNCP C13: Intégrer les évolutions et le suivi des modèles (MLOps)
 """
 import pandas as pd
 import numpy as np

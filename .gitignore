@@ -21,11 +21,11 @@ env/
 Thumbs.db
 .env
 
-# Logs - RNCP C20
+# Logs
 logs/
 *.log
 
-# MLflow - RNCP C11, C13
+# MLflow
 mlruns/
 mlartifacts/
 

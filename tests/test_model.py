@@ -1,6 +1,5 @@
 """
 Tests automatisés pour les modèles ML
-RNCP C12: Tests automatisés des modèles d'IA
 """
 import pytest
 import pandas as pd

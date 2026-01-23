@@ -16,11 +16,11 @@ fastapi==0.109.0
 uvicorn==0.27.0
 httpx==0.26.0
 
-# Tests et qualité - RNCP C12
+# Tests et qualité
 pytest==7.4.4
 pytest-cov==4.1.0
 pytest-asyncio==0.23.3
 
-# MLOps - RNCP C11, C13
+# MLOps
 mlflow==2.10.2
 

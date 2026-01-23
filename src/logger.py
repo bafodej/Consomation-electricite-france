@@ -1,6 +1,5 @@
 """
 Configuration du logging applicatif structuré
-RNCP C20: Assurer le monitoring et la supervision de l'application
 """
 import logging
 import sys

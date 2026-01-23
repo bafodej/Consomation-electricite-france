@@ -1,6 +1,4 @@
 name: CI/CD Pipeline - RTE Consommation
-# RNCP C18: Intégrer en continu les évolutions de l'application
-# RNCP C19: Déployer en continu l'application
 
 on:
   push:
@@ -104,7 +102,7 @@ jobs:
           fi
 
   security-scan:
-    name: Scan de sécurité - RNCP C17
+    name: Scan de sécurité
     runs-on: ubuntu-latest
 
     steps:
