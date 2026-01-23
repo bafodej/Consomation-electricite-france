@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
 import os
-import requests 
+import requests
 from sqlalchemy import create_engine
+from dotenv import load_dotenv
+
+load_dotenv()
 
 print("ETL Dataset...")
 
@@ -15,10 +18,19 @@ df = pd.DataFrame({
 })
 
 try:
-    token = 'VOTRE_TOKEN'
+    client_id = os.getenv('RTE_CLIENT_ID')
+    client_secret = os.getenv('RTE_CLIENT_SECRET')
+
+    if not client_id or not client_secret:
+        raise ValueError("RTE_CLIENT_ID et RTE_CLIENT_SECRET requis dans .env")
+
     start, end = '2024-12-01T00:00:00', '2025-12-15T23:59:00'
-    url = f"https://digital.iservices.rte-france.com/open_api/consumption/v1/consumption?start_date={start}&end_date={end}&token={token}"
-    resp = requests.get(url)
+    url = f"https://digital.iservices.rte-france.com/open_api/consumption/v1/consumption?start_date={start}&end_date={end}"
+
+    # Authentification avec client_id et client_secret
+    auth = (client_id, client_secret)
+    resp = requests.get(url, auth=auth)
+
     if resp.status_code == 200:
         df_real = pd.DataFrame(resp.json())
         df_real['datetime'] = pd.to_datetime(df_real['updated'])
