@@ -9,7 +9,7 @@ st.set_page_config(layout="wide")
 st.title("Consommation Électricité France")
 st.markdown("Data Engineering")
 
-API_BASE = "http://localhost:8001"
+API_BASE = "http://localhost:8000"
 
 @st.cache_data(ttl=60)
 def fetch_data(endpoint):
@@ -51,7 +51,7 @@ with col2:
         st.warning("Données indisponibles")
 
 st.markdown("---")
-st.caption("ETL + FastAPI + Streamlit - RNCP C1 validé")
+st.caption("ETL + FastAPI + Streamlit -  C1 ")
 
 if st.toggle("Auto-refresh (60s)"):
     st.info("Refresh auto activé...")
