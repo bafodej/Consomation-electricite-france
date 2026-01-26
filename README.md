@@ -6,6 +6,7 @@ Application complète d'analyse et prédiction de la consommation électrique fr
 
 Pipeline data science et MLOps end-to-end :
 - Collecte de données via API RTE éCO2mix
+- Base de données PostgreSQL avec conformité RGPD
 - API REST pour exposition des données
 - Dashboard interactif de visualisation
 - Modèles ML de prédiction de consommation
