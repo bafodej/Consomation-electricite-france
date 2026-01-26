@@ -21,25 +21,25 @@ try:
     client_id = os.getenv('RTE_CLIENT_ID')
     client_secret = os.getenv('RTE_CLIENT_SECRET')
 
-    if not client_id or not client_secret:
-        raise ValueError("RTE_CLIENT_ID et RTE_CLIENT_SECRET requis dans .env")
+    if client_id and client_secret:
+        start, end = '2024-12-01T00:00:00', '2025-12-15T23:59:00'
+        url = f"https://digital.iservices.rte-france.com/open_api/consumption/v1/consumption?start_date={start}&end_date={end}"
 
-    start, end = '2024-12-01T00:00:00', '2025-12-15T23:59:00'
-    url = f"https://digital.iservices.rte-france.com/open_api/consumption/v1/consumption?start_date={start}&end_date={end}"
+        # Authentification avec client_id et client_secret
+        auth = (client_id, client_secret)
+        resp = requests.get(url, auth=auth)
 
-    # Authentification avec client_id et client_secret
-    auth = (client_id, client_secret)
-    resp = requests.get(url, auth=auth)
-
-    if resp.status_code == 200:
-        df_real = pd.DataFrame(resp.json())
-        df_real['datetime'] = pd.to_datetime(df_real['updated'])
-        df_real.to_csv('data/rte_real.csv')  # Réel si OK
-        print("API OK, réel utilisé")
+        if resp.status_code == 200:
+            df_real = pd.DataFrame(resp.json())
+            df_real['datetime'] = pd.to_datetime(df_real['updated'])
+            df_real.to_csv('data/rte_real.csv')
+            print("API OK, donnees reelles utilisees")
+        else:
+            print("API fail, donnees synthetiques utilisees")
     else:
-        print("API fail, synthétique fallback")
-except:
-    pass  # Garde synthétique
+        print("Credentials RTE absents, donnees synthetiques utilisees")
+except Exception as e:
+    print(f"Erreur API RTE: {e}, donnees synthetiques utilisees")
 
 os.makedirs('data', exist_ok=True)
 os.makedirs('database', exist_ok=True)

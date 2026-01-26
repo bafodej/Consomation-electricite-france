@@ -29,6 +29,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Create test database
+        run: |
+          python src/create_dataset.py
+
       - name: Run pytest with coverage
         run: |
           pytest tests/ -v --cov=api --cov=src --cov-report=xml --cov-report=term-missing

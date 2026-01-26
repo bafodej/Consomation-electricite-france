@@ -75,18 +75,16 @@ class TestAPIValidation:
     """Tests de validation et gestion d'erreurs"""
 
     def test_conso_negative_limit(self):
-        """Test avec limite négative - doit gérer gracieusement"""
+        """Test avec limite negative - doit retourner une erreur"""
         response = client.get("/conso?limit=-5")
-        # Même avec limite négative, l'API ne doit pas crasher
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_conso_zero_limit(self):
-        """Test avec limite zéro"""
+        """Test avec limite zero - doit retourner une erreur"""
         response = client.get("/conso?limit=0")
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.json()
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert "detail" in data
 
 
 class TestAPISecurity:
