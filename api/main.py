@@ -7,6 +7,9 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from typing import Optional
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Ajouter le répertoire parent au path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,9 +27,21 @@ app = FastAPI(
 )
 
 # Configuration base de données
-db_path = os.path.abspath('database/rte_consommation.db')
-engine = create_engine(f'sqlite:///{db_path}')
-logger.info(f"API démarrée avec base de données: {db_path}")
+DATABASE_TYPE = os.getenv('DATABASE_TYPE', 'sqlite').lower()
+
+if DATABASE_TYPE == 'postgresql':
+    host = os.getenv('POSTGRES_HOST', 'localhost')
+    port = os.getenv('POSTGRES_PORT', '5432')
+    db = os.getenv('POSTGRES_DB', 'rte_consommation')
+    user = os.getenv('POSTGRES_USER', 'rte_user')
+    password = os.getenv('POSTGRES_PASSWORD', 'rte_secure_password')
+    conn_string = f'postgresql://{user}:{password}@{host}:{port}/{db}'
+    engine = create_engine(conn_string)
+    logger.info(f"API démarrée avec PostgreSQL: {host}:{port}/{db}")
+else:
+    db_path = os.path.abspath('database/rte_consommation.db')
+    engine = create_engine(f'sqlite:///{db_path}')
+    logger.info(f"API démarrée avec SQLite: {db_path}")
 
 
 @app.middleware("http")

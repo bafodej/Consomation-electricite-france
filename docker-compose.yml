@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rte-postgres
+    environment:
+      POSTGRES_DB: rte_consommation
+      POSTGRES_USER: rte_user
+      POSTGRES_PASSWORD: rte_secure_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init_postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rte_user -d rte_consommation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rte-network
+
   api:
     build:
       context: .
@@ -15,6 +36,12 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
+      - DATABASE_TYPE=sqlite
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=rte_consommation
+      - POSTGRES_USER=rte_user
+      - POSTGRES_PASSWORD=rte_secure_password
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -22,6 +49,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - rte-network
 
@@ -66,6 +96,7 @@ networks:
     driver: bridge
 
 volumes:
+  postgres-data:
   database-data:
   logs-data:
   mlruns-data:
