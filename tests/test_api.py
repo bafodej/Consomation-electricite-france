@@ -1,10 +1,12 @@
 """
 Tests automatisés pour l'API FastAPI
 """
-import pytest
-from fastapi.testclient import TestClient
+
 import sys
 from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
 
 # Ajouter le répertoire parent au path
 sys.path.insert(0, str(Path(__file__).parent.parent))
