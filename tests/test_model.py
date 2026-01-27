@@ -71,7 +71,9 @@ class TestModelPerformance:
 
         # MAE doit être < 5000 MW (10% de la conso moyenne)
         MAE_THRESHOLD = 5000
-        assert mae < MAE_THRESHOLD, f"MAE {mae:.0f} MW dépasse le seuil de {MAE_THRESHOLD} MW"
+        assert (
+            mae < MAE_THRESHOLD
+        ), f"MAE {mae:.0f} MW dépasse le seuil de {MAE_THRESHOLD} MW"
 
     def test_model_r2_score(self, trained_model, sample_data):
         """Test: R² doit indiquer un bon fit"""
@@ -83,14 +85,18 @@ class TestModelPerformance:
 
         # R² minimum acceptable: 0.7
         R2_THRESHOLD = 0.7
-        assert r2 >= R2_THRESHOLD, f"R² score {r2:.3f} insuffisant (min: {R2_THRESHOLD})"
+        assert (
+            r2 >= R2_THRESHOLD
+        ), f"R² score {r2:.3f} insuffisant (min: {R2_THRESHOLD})"
 
     def test_model_no_negative_predictions(self, trained_model):
         """Test: pas de prédictions négatives"""
         X_test = np.array([[h] for h in range(0, 24)])
         predictions = trained_model.predict(X_test)
 
-        assert all(predictions >= 0), "Le modèle ne doit pas prédire de consommation négative"
+        assert all(
+            predictions >= 0
+        ), "Le modèle ne doit pas prédire de consommation négative"
 
     def test_peak_hours_detection(self, trained_model):
         """Test: variations de consommation selon l'heure"""
@@ -127,7 +133,9 @@ class TestModelSaving:
         pred_original = model_original.predict(X_test)[0]
         pred_loaded = model_loaded.predict(X_test)[0]
 
-        assert pred_original == pred_loaded, "Le modèle chargé doit donner les mêmes prédictions"
+        assert (
+            pred_original == pred_loaded
+        ), "Le modèle chargé doit donner les mêmes prédictions"
 
     @pytest.fixture
     def sample_data(self):

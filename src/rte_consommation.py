@@ -39,7 +39,9 @@ def get_recent_conso():
         "sort": "-date_heure",
         "refine.perimetre": "France",
     }
-    resp = requests.get("https://odre.opendatasoft.com/api/records/1.0/search/", params=params)
+    resp = requests.get(
+        "https://odre.opendatasoft.com/api/records/1.0/search/", params=params
+    )
     data = resp.json()
 
     records = [

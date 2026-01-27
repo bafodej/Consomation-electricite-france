@@ -5,7 +5,9 @@ import requests
 def get_consommation(start, end):
     """Conso RTE France PUBLIQUE"""
     # ENDPOINT  Eco2Mix
-    url = "https://digital.iservices.rte-france.com/open_api/eco2mix/v1/powerConsumption"
+    url = (
+        "https://digital.iservices.rte-france.com/open_api/eco2mix/v1/powerConsumption"
+    )
     params = {"start_date": f"{start}T00:00:00Z", "end_date": f"{end}T23:59:59Z"}
 
     resp = requests.get(url, params=params)

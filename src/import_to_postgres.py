@@ -62,7 +62,9 @@ def import_consommation():
 
     print("Import termine avec succes")
 
-    result = pd.read_sql_query("SELECT COUNT(*) as total FROM consommation", postgres_engine)
+    result = pd.read_sql_query(
+        "SELECT COUNT(*) as total FROM consommation", postgres_engine
+    )
     print(f"Total en base PostgreSQL: {result['total'][0]} lignes")
 
 

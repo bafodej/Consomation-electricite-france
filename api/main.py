@@ -112,12 +112,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 def root():
     """Endpoint racine - vérification de l'état de l'API"""
     try:
-        count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0]["cnt"]
+        count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0][
+            "cnt"
+        ]
         logger.info(f"Vérification santé API: {count} enregistrements en base")
         return {"status": "OK", "lignes": int(count)}
     except Exception as e:
-        logger.error(f"Erreur lors de la vérification de santé: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Erreur de connexion à la base de données")
+        logger.error(
+            f"Erreur lors de la vérification de santé: {str(e)}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="Erreur de connexion à la base de données"
+        )
 
 
 @app.get("/conso")
@@ -126,21 +132,29 @@ def conso(limit: Optional[int] = 24):
     try:
         if limit <= 0:
             logger.warning(f"Limite invalide demandée: {limit}")
-            raise HTTPException(status_code=400, detail="La limite doit être supérieure à 0")
+            raise HTTPException(
+                status_code=400, detail="La limite doit être supérieure à 0"
+            )
 
         if limit > 1000:
             logger.warning(f"Limite trop élevée demandée: {limit}, limitée à 1000")
             limit = 1000
 
-        df = pd.read_sql(f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine)
+        df = pd.read_sql(
+            f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine
+        )
         logger.info(f"Récupération de {len(df)} enregistrements de consommation")
         return df.to_dict("records")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération des données: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Erreur lors de la récupération des données")
+        logger.error(
+            f"Erreur lors de la récupération des données: {str(e)}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="Erreur lors de la récupération des données"
+        )
 
 
 @app.get("/stats")
@@ -148,7 +162,8 @@ def stats():
     """Statistiques globales de consommation"""
     try:
         stats_df = pd.read_sql(
-            "SELECT AVG(mw_conso) m, MAX(mw_conso) p, MIN(mw_conso) c FROM consommation", engine
+            "SELECT AVG(mw_conso) m, MAX(mw_conso) p, MIN(mw_conso) c FROM consommation",
+            engine,
         ).iloc[0]
 
         result = {
@@ -162,7 +177,9 @@ def stats():
 
     except Exception as e:
         logger.error(f"Erreur lors du calcul des statistiques: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Erreur lors du calcul des statistiques")
+        raise HTTPException(
+            status_code=500, detail="Erreur lors du calcul des statistiques"
+        )
 
 
 if __name__ == "__main__":
