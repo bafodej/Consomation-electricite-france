@@ -5,7 +5,8 @@ Application complète d'analyse et prédiction de la consommation électrique fr
 ## Aperçu
 
 Pipeline data science et MLOps end-to-end :
-- Collecte de données via API RTE éCO2mix
+- Collecte multi-sources : RTE éCO2mix + Open-Meteo
+- Pipeline ETL de fusion et enrichissement
 - Base de données PostgreSQL avec conformité RGPD
 - API REST pour exposition des données
 - Dashboard interactif de visualisation
@@ -114,8 +115,19 @@ docker-compose up -d
 
 ### 1. Collecter les données
 
+**Données de consommation:**
 ```bash
-python src/rte_consommation.py
+python src/create_dataset.py
+```
+
+**Données météo (enrichissement):**
+```bash
+python src/collect_meteo.py
+```
+
+**Fusion multi-sources (Pipeline ETL):**
+```bash
+python src/etl_fusion_donnees.py
 ```
 
 ### 2. Lancer l'API
