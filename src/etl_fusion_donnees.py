@@ -32,89 +32,95 @@ def get_database_engine():
 
 def extract_data():
     """
-    Extract: Extraction des données depuis les sources
+    Extract: Extraction des donnees depuis 3 types de sources differentes
 
     Returns:
-        tuple: (df_conso, df_meteo, df_calendrier)
+        tuple: (df_conso, df_calendrier, df_prix)
     """
-    print("=== EXTRACT - Extraction des données ===\n")
+    print("=== EXTRACT - Extraction des donnees ===\n")
+    print("3 types de sources:")
+    print("  Type 1: API (consommation RTE)")
+    print("  Type 2: Fichier texte (jours feries CSV)")
+    print("  Type 3: Web scrapping (prix spot electricite)\n")
 
     engine = get_database_engine()
 
-    # Extraction consommation (source API)
-    print("1. Extraction table consommation (API RTE)...")
+    # Extraction consommation (source TYPE 1: API)
+    print("1. Extraction consommation [SOURCE: API RTE]...")
     df_conso = pd.read_sql("SELECT * FROM consommation ORDER BY datetime", engine)
     print(f"  {len(df_conso)} enregistrements consommation")
 
-    # Extraction météo (source API)
-    print("2. Extraction table meteo (API Open-Meteo)...")
-    try:
-        df_meteo = pd.read_sql("SELECT * FROM meteo ORDER BY datetime", engine)
-        print(f"  {len(df_meteo)} enregistrements météo")
-    except Exception as e:
-        print(f"  Table meteo non trouvée: {e}")
-        print("  Exécuter d'abord: python src/collect_meteo.py")
-        return None, None, None
-
-    # Extraction calendrier jours fériés (source fichier texte)
-    print("3. Extraction table calendrier_feries (Fichier CSV)...")
+    # Extraction calendrier jours feries (source TYPE 2: Fichier texte)
+    print("2. Extraction calendrier [SOURCE: Fichier CSV]...")
     try:
         df_calendrier = pd.read_sql(
             "SELECT * FROM calendrier_feries ORDER BY datetime", engine
         )
         print(f"  {len(df_calendrier)} enregistrements calendrier")
     except Exception as e:
-        print(f"  Table calendrier_feries non trouvée: {e}")
-        print("  Exécuter d'abord: python src/load_jours_feries.py")
+        print(f"  Table calendrier_feries non trouvee: {e}")
+        print("  Executer d'abord: python src/load_jours_feries.py")
         return None, None, None
 
-    return df_conso, df_meteo, df_calendrier
+    # Extraction prix spot (source TYPE 3: Web scrapping)
+    print("3. Extraction prix spot [SOURCE: Web scrapping]...")
+    try:
+        df_prix = pd.read_sql(
+            "SELECT * FROM prix_spot_electricite ORDER BY datetime", engine
+        )
+        print(f"  {len(df_prix)} enregistrements prix spot")
+    except Exception as e:
+        print(f"  Table prix_spot_electricite non trouvee: {e}")
+        print("  Executer d'abord: python src/scrape_prix_electricite.py")
+        return None, None, None
+
+    return df_conso, df_calendrier, df_prix
 
 
-def transform_data(df_conso, df_meteo, df_calendrier):
+def transform_data(df_conso, df_calendrier, df_prix):
     """
-    Transform: Nettoyage, validation, fusion multi-sources
+    Transform: Nettoyage, validation, fusion 3 types sources
 
     Args:
         df_conso: DataFrame consommation (API)
-        df_meteo: DataFrame météo (API)
-        df_calendrier: DataFrame calendrier fériés (Fichier)
+        df_calendrier: DataFrame calendrier feries (Fichier texte)
+        df_prix: DataFrame prix spot (Web scrapping)
 
     Returns:
-        DataFrame fusionné et nettoyé
+        DataFrame fusionne et nettoye
     """
-    print("\n=== TRANSFORM - Transformation des données ===\n")
+    print("\n=== TRANSFORM - Transformation des donnees ===\n")
 
     # Conversion types datetime
     df_conso["datetime"] = pd.to_datetime(df_conso["datetime"])
-    df_meteo["datetime"] = pd.to_datetime(df_meteo["datetime"])
     df_calendrier["datetime"] = pd.to_datetime(df_calendrier["datetime"])
+    df_prix["datetime"] = pd.to_datetime(df_prix["datetime"])
 
     print(
-        f"Période consommation: {df_conso['datetime'].min()} -> {df_conso['datetime'].max()}"
+        f"Periode consommation: {df_conso['datetime'].min()} -> {df_conso['datetime'].max()}"
     )
     print(
-        f"Période météo: {df_meteo['datetime'].min()} -> {df_meteo['datetime'].max()}"
+        f"Periode calendrier: {df_calendrier['datetime'].min()} -> {df_calendrier['datetime'].max()}"
     )
     print(
-        f"Période calendrier: {df_calendrier['datetime'].min()} -> {df_calendrier['datetime'].max()}"
+        f"Periode prix spot: {df_prix['datetime'].min()} -> {df_prix['datetime'].max()}"
     )
 
-    # Fusion 1: Consommation + Météo
-    print("\nFusion 1/2: Consommation + Météo...")
+    # Fusion 1: Consommation + Prix spot
+    print("\nFusion 1/2: Consommation (API) + Prix spot (Scrapping)...")
     df_merged = pd.merge(
-        df_conso, df_meteo, on="datetime", how="inner", suffixes=("", "_meteo")
+        df_conso, df_prix, on="datetime", how="inner", suffixes=("", "_prix")
     )
-    print(f"  {len(df_merged)} enregistrements après fusion 1")
+    print(f"  {len(df_merged)} enregistrements apres fusion 1")
 
-    # Fusion 2: + Calendrier jours fériés
-    print("Fusion 2/2: + Calendrier jours fériés...")
+    # Fusion 2: + Calendrier jours feries
+    print("Fusion 2/2: + Calendrier (Fichier CSV)...")
     calendrier_cols = ["datetime", "est_ferie", "est_vacances", "nom_ferie"]
     df_calendrier_mini = df_calendrier[calendrier_cols]
     df_merged = pd.merge(
         df_merged, df_calendrier_mini, on="datetime", how="left", suffixes=("", "_cal")
     )
-    print(f"  {len(df_merged)} enregistrements après fusion 2")
+    print(f"  {len(df_merged)} enregistrements apres fusion 2")
 
     # Supprimer colonnes redondantes
     cols_to_drop = [
@@ -145,21 +151,20 @@ def transform_data(df_conso, df_meteo, df_calendrier):
     df_merged["nom_ferie"] = df_merged["nom_ferie"].fillna("")
 
     # Statistiques finales
-    print("\n=== Statistiques données fusionnées ===")
+    print("\n=== Statistiques donnees fusionnees ===")
     print(f"Total enregistrements: {len(df_merged)}")
     print(f"Colonnes: {list(df_merged.columns)}")
     print(
-        f"Jours fériés: {df_merged['est_ferie'].sum()} heures ({df_merged['est_ferie'].sum()/24:.0f} jours)"
+        f"Jours feries: {df_merged['est_ferie'].sum()} heures ({df_merged['est_ferie'].sum()/24:.0f} jours)"
     )
     print(
         f"Vacances scolaires: {df_merged['est_vacances'].sum()} heures ({df_merged['est_vacances'].sum()/24:.0f} jours)"
     )
-    print("\nCorrélations avec consommation:")
+    print(f"Prix spot moyen: {df_merged['prix_spot_eur_mwh'].mean():.2f} EUR/MWh")
+    print("\nCorrelations avec consommation:")
 
     corr_vars = [
-        "temperature",
-        "vent",
-        "ensoleillement",
+        "prix_spot_eur_mwh",
         "heure",
         "jour_semaine",
         "est_ferie",
@@ -203,36 +208,37 @@ def load_data(df, table_name="conso_meteo_enrichi"):
 
 
 def run_etl_pipeline():
-    """Execution complete du pipeline ETL multi-sources"""
-    print("=" * 50)
-    print("   Pipeline ETL - Fusion Multi-Sources")
-    print("   API + API + Fichier Texte")
-    print("=" * 50 + "\n")
-    print("Sources:")
-    print("  1. API RTE eCO2mix (consommation)")
-    print("  2. API Open-Meteo (meteo)")
-    print("  3. Fichier CSV (jours feries)\n")
+    """Execution complete du pipeline ETL - 3 types sources differents"""
+    print("=" * 60)
+    print("   Pipeline ETL - Fusion 3 Types de Sources")
+    print("   API + Fichier Texte + Web Scrapping")
+    print("=" * 60 + "\n")
+    print("Types de sources:")
+    print("  1. API: RTE eCO2mix (consommation)")
+    print("  2. Fichier texte: CSV (jours feries)")
+    print("  3. Web scrapping: Prix spot electricite\n")
 
     # EXTRACT
-    df_conso, df_meteo, df_calendrier = extract_data()
+    df_conso, df_calendrier, df_prix = extract_data()
 
-    if df_conso is None or df_meteo is None or df_calendrier is None:
-        print("\nERREUR: Données source manquantes")
-        print("Exécuter dans l'ordre:")
+    if df_conso is None or df_calendrier is None or df_prix is None:
+        print("\nERREUR: Donnees source manquantes")
+        print("Executer dans l'ordre:")
         print("  1. python src/create_dataset.py")
-        print("  2. python src/collect_meteo.py")
-        print("  3. python src/load_jours_feries.py")
+        print("  2. python src/load_jours_feries.py")
+        print("  3. python src/scrape_prix_electricite.py")
         return False
 
     # TRANSFORM
-    df_enrichi = transform_data(df_conso, df_meteo, df_calendrier)
+    df_enrichi = transform_data(df_conso, df_calendrier, df_prix)
 
     # LOAD
-    load_data(df_enrichi, table_name="conso_meteo_calendrier_enrichi")
+    load_data(df_enrichi, table_name="conso_enrichi_3sources")
 
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     print("        Pipeline ETL termine avec succes")
-    print("=" * 50)
+    print("        3 types sources integrees")
+    print("=" * 60)
 
     return True
 
