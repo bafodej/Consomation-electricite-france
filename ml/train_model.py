@@ -14,25 +14,41 @@ from datetime import datetime
 
 
 def load_data():
-    """Charger les données de consommation RTE"""
-    data_path = Path(__file__).parent.parent / "data" / "conso_recent_2026.csv"
+    """Charger les donnees enrichies (3 sources)"""
+    data_path = Path(__file__).parent.parent / "data" / "conso_enrichi_3sources.csv"
 
     if not data_path.exists():
-        raise FileNotFoundError(f"Fichier de données introuvable: {data_path}")
+        print(f"ERREUR: Fichier introuvable: {data_path}")
+        print("Executer d'abord: python src/etl_fusion_donnees.py")
+        raise FileNotFoundError(f"Fichier de donnees introuvable: {data_path}")
 
     df = pd.read_csv(data_path)
-    df['date_heure'] = pd.to_datetime(df['date_heure'])
-    df['heure'] = df['date_heure'].dt.hour
-    df['jour_semaine'] = df['date_heure'].dt.dayofweek
-    df['mois'] = df['date_heure'].dt.month
+    df["datetime"] = pd.to_datetime(df["datetime"])
 
     return df
 
 
 def prepare_features(df):
-    """Préparer les features pour l'entraînement"""
-    features = ['heure', 'jour_semaine', 'mois']
-    target = 'consommation'
+    """Preparer les features pour l'entrainement avec donnees multi-sources"""
+
+    # Features disponibles avec les 3 sources
+    features = [
+        "heure",  # Feature temporelle
+        "jour_semaine",  # Feature temporelle
+        "mois",  # Feature temporelle
+        "jour_mois",  # Feature temporelle
+        "est_weekend",  # Feature temporelle
+        "prix_spot_eur_mwh",  # Source 3: Web scrapping
+        "est_ferie",  # Source 2: Fichier texte
+        "est_vacances",  # Source 2: Fichier texte
+    ]
+
+    target = "mw_conso"  # Source 1: API
+
+    # Verifier que toutes les colonnes existent
+    missing_cols = [col for col in features if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Colonnes manquantes: {missing_cols}")
 
     df_clean = df.dropna(subset=[target] + features)
 
@@ -163,7 +179,8 @@ def main():
         # Tags
         mlflow.set_tag("model_type", "RandomForestRegressor")
         mlflow.set_tag("target", "consommation_electrique")
-        mlflow.set_tag("data_source", "RTE_eco2mix")
+        mlflow.set_tag("data_sources", "API_RTE + Fichier_CSV + Web_Scrapping")
+        mlflow.set_tag("nb_sources", "3")
         mlflow.set_tag("training_date", datetime.now().isoformat())
 
         print("\nEntraînement terminé avec succès!")
