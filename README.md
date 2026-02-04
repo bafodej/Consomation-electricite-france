@@ -52,14 +52,24 @@ Pipeline data science et MLOps end-to-end :
 
 ```
 ├── api/                    # API FastAPI
-├── data/                   # Données CSV RTE
-├── database/               # SQLite
+├── data/                   # Données CSV (3 sources)
+├── database/               # Bases de données
+│   ├── rte_consommation.db     # SQLite
+│   └── init_postgres.sql       # Schema PostgreSQL
 ├── front/                  # Dashboard Streamlit
 ├── ml/                     # Machine Learning
 │   ├── train_model.py
+│   ├── train_model.ipynb
 │   ├── benchmark_models.ipynb
 │   └── models/
-├── src/                    # Scripts utilitaires
+├── notebooks/              # Notebooks d'exploration
+│   └── etl_exploration.ipynb
+├── src/                    # Scripts collecte et ETL
+│   ├── create_dataset.py       # API RTE
+│   ├── load_jours_feries.py    # Fichier CSV
+│   ├── scrape_prix_electricite.py  # Web scrapping
+│   ├── etl_fusion_donnees.py   # Pipeline ETL
+│   └── import_to_postgres.py   # Migration SQLite -> PostgreSQL
 ├── tests/                  # Tests automatisés
 ├── .github/workflows/      # CI/CD
 ├── Dockerfile
@@ -69,9 +79,67 @@ Pipeline data science et MLOps end-to-end :
 
 ---
 
+## Base de données
+
+Le projet supporte **deux types de bases de données** avec basculement automatique:
+
+### SQLite (par défaut)
+- Base de données locale légère
+- Fichier unique : `database/rte_consommation.db`
+- Idéal pour développement et tests
+- Aucune installation requise
+
+### PostgreSQL (production)
+- Base de données relationnelle robuste
+- Conformité RGPD avec modélisation MCD/MLD
+- Support multi-utilisateurs et transactions
+- Déployable via Docker
+
+### Configuration
+
+**Pour utiliser SQLite (par défaut):**
+```bash
+# Aucune config nécessaire, utilisé automatiquement
+python src/create_dataset.py
+```
+
+**Pour utiliser PostgreSQL:**
+
+1. Créer fichier `.env`:
+```bash
+DATABASE_TYPE=postgresql
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=rte_consommation
+POSTGRES_USER=rte_user
+POSTGRES_PASSWORD=rte_secure_password
+```
+
+2. Lancer PostgreSQL avec Docker:
+```bash
+docker-compose up -d postgres
+```
+
+3. Migrer les données SQLite vers PostgreSQL:
+```bash
+python src/import_to_postgres.py
+```
+
+### Tables disponibles
+
+- **consommation** : Données de consommation électrique (API RTE)
+- **calendrier_feries** : Jours fériés et vacances (CSV)
+- **prix_spot_electricite** : Prix spot horaires (Web scrapping)
+- **conso_enrichi_3sources** : Données fusionnées enrichies (ETL)
+- **meteo** : Données météorologiques (optionnel)
+- **prevision** : Prédictions du modèle ML
+
+---
+
 ## Technologies
 
-- **Backend** : FastAPI, SQLAlchemy, SQLite
+- **Backend** : FastAPI, SQLAlchemy
+- **Base de données** : SQLite, PostgreSQL (dual support)
 - **Frontend** : Streamlit, Plotly
 - **ML** : scikit-learn, XGBoost, MLflow
 - **Data** : Pandas, Numpy
@@ -101,9 +169,11 @@ pip install -r requirements.txt
 ### Avec Docker
 
 ```bash
+# Lancer tous les services (PostgreSQL, API, Dashboard, MLflow)
 docker-compose up -d
 
-# Accès services :
+# Services disponibles :
+# PostgreSQL: localhost:5432
 # API: http://localhost:8000
 # Dashboard: http://localhost:8501
 # MLflow: http://localhost:5000
