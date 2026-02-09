@@ -91,6 +91,41 @@ services:
     networks:
       - rte-network
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rte-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - rte-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rte-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - rte-network
+
 networks:
   rte-network:
     driver: bridge
@@ -100,3 +135,5 @@ volumes:
   database-data:
   logs-data:
   mlruns-data:
+  prometheus-data:
+  grafana-data:

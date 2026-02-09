@@ -23,4 +23,5 @@ pytest-asyncio==0.23.3
 
 # MLOps
 mlflow==2.10.2
+prometheus-client==0.20.0
 

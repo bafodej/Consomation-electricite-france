@@ -1,0 +1,8 @@
+# Donnees Prometheus
+data/
+prometheus-data/
+
+# Donnees Grafana
+grafana-data/
+*.db
+*.log

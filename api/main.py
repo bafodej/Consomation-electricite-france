@@ -7,8 +7,9 @@ from typing import Optional
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import create_engine
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 load_dotenv()
 
@@ -44,12 +45,47 @@ else:
     engine = create_engine(f"sqlite:///{db_path}")
     logger.info(f"API démarrée avec SQLite: {db_path}")
 
+# Metriques Prometheus
+REQUEST_COUNT = Counter(
+    'api_requests_total',
+    'Nombre total de requetes HTTP',
+    ['method', 'endpoint', 'status']
+)
+
+REQUEST_DURATION = Histogram(
+    'api_request_duration_seconds',
+    'Duree des requetes HTTP en secondes',
+    ['method', 'endpoint']
+)
+
+REQUEST_IN_PROGRESS = Gauge(
+    'api_requests_in_progress',
+    'Nombre de requetes en cours'
+)
+
+DB_RECORDS = Gauge(
+    'db_consommation_records_total',
+    'Nombre total enregistrements en base'
+)
+
+API_ERRORS = Counter(
+    'api_errors_total',
+    'Nombre total erreurs API',
+    ['endpoint', 'error_type']
+)
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Middleware pour logger toutes les requêtes"""
+    """Middleware pour logger toutes les requêtes et collecter metriques"""
     start_time = time.time()
     request_id = f"{int(start_time * 1000)}"
+
+    # Ignorer endpoint /metrics pour eviter boucle infinie
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    REQUEST_IN_PROGRESS.inc()
 
     logger.info(
         f"Requête entrante: {request.method} {request.url.path}",
@@ -63,7 +99,20 @@ async def log_requests(request: Request, call_next):
 
     try:
         response = await call_next(request)
-        duration_ms = (time.time() - start_time) * 1000
+        duration = time.time() - start_time
+        duration_ms = duration * 1000
+
+        # Collecter metriques Prometheus
+        REQUEST_COUNT.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            status=response.status_code
+        ).inc()
+
+        REQUEST_DURATION.labels(
+            method=request.method,
+            endpoint=request.url.path
+        ).observe(duration)
 
         logger.info(
             f"Requête terminée: {request.method} {request.url.path} - {response.status_code}",
@@ -79,6 +128,13 @@ async def log_requests(request: Request, call_next):
 
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
+
+        # Metriques d'erreur
+        API_ERRORS.labels(
+            endpoint=request.url.path,
+            error_type=type(e).__name__
+        ).inc()
+
         logger.error(
             f"Erreur lors du traitement: {request.method} {request.url.path}",
             extra={
@@ -89,6 +145,8 @@ async def log_requests(request: Request, call_next):
             exc_info=True,
         )
         raise
+    finally:
+        REQUEST_IN_PROGRESS.dec()
 
 
 @app.exception_handler(Exception)
@@ -106,6 +164,19 @@ async def global_exception_handler(request: Request, exc: Exception):
             "message": "Une erreur s'est produite lors du traitement de votre requête",
         },
     )
+
+
+@app.get("/metrics")
+def metrics():
+    """Endpoint Prometheus pour exposition des metriques"""
+    try:
+        # Mettre a jour metrique nombre d'enregistrements
+        count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0]["cnt"]
+        DB_RECORDS.set(count)
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise a jour des metriques: {str(e)}")
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/")

@@ -11,6 +11,7 @@ Pipeline data science et MLOps end-to-end :
 - API REST pour exposition des données
 - Dashboard interactif de visualisation
 - Modèles ML de prédiction de consommation
+- Monitoring avec Prometheus et Grafana
 - Tests automatisés et CI/CD
 - Conteneurisation Docker
 
@@ -46,6 +47,12 @@ Pipeline data science et MLOps end-to-end :
 - Scan sécurité (Bandit, Safety)
 - Docker + docker-compose
 
+### Monitoring
+- Prometheus : collecte métriques temps réel
+- Grafana : dashboards de visualisation
+- Métriques API : requêtes, latence, erreurs
+- Alerting configurable
+
 ---
 
 ## Architecture
@@ -62,6 +69,10 @@ Pipeline data science et MLOps end-to-end :
 │   ├── train_model.ipynb
 │   ├── benchmark_models.ipynb
 │   └── models/
+├── monitoring/             # Prometheus & Grafana
+│   ├── prometheus.yml          # Config Prometheus
+│   ├── grafana/                # Dashboards Grafana
+│   └── README.md
 ├── notebooks/              # Notebooks d'exploration
 │   └── etl_exploration.ipynb
 ├── src/                    # Scripts collecte et ETL
@@ -136,6 +147,73 @@ python src/import_to_postgres.py
 
 ---
 
+## Monitoring
+
+Le projet inclut un système de monitoring complet avec **Prometheus** et **Grafana**.
+
+### Prometheus
+- Collecte automatique des métriques API
+- Scraping toutes les 15 secondes
+- Retention 15 jours
+- Interface web: http://localhost:9090
+
+### Grafana
+- Dashboard pré-configuré "RTE API - Monitoring"
+- Visualisations temps réel
+- Credentials: admin/admin
+- Interface web: http://localhost:3000
+
+### Métriques disponibles
+
+**API Performance:**
+- `api_requests_total` : Nombre total de requêtes par endpoint/status
+- `api_request_duration_seconds` : Latence des requêtes (histogramme)
+- `api_requests_in_progress` : Requêtes en cours de traitement
+- `api_errors_total` : Nombre d'erreurs par type
+
+**Base de données:**
+- `db_consommation_records_total` : Nombre d'enregistrements en base
+
+### Dashboard Grafana
+
+Le dashboard inclut:
+1. Taux de requêtes par minute
+2. Requêtes en cours (temps réel)
+3. Nombre d'enregistrements en base
+4. Latence p95 par endpoint
+5. Taux d'erreurs
+6. Distribution par endpoint
+7. Status HTTP (200, 400, 500...)
+
+### Démarrage
+
+```bash
+# Lancer tous les services incluant monitoring
+docker-compose up -d
+
+# Accès aux interfaces:
+# - Prometheus: http://localhost:9090
+# - Grafana: http://localhost:3000
+# - Métriques API: http://localhost:8000/metrics
+```
+
+### Exemples de requêtes PromQL
+
+```promql
+# Taux de requêtes par seconde
+rate(api_requests_total[1m])
+
+# Latence p95
+histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))
+
+# Taux d'erreurs
+sum(rate(api_errors_total[5m]))
+```
+
+Documentation complète: `monitoring/README.md`
+
+---
+
 ## Technologies
 
 - **Backend** : FastAPI, SQLAlchemy
@@ -143,6 +221,7 @@ python src/import_to_postgres.py
 - **Frontend** : Streamlit, Plotly
 - **ML** : scikit-learn, XGBoost, MLflow
 - **Data** : Pandas, Numpy
+- **Monitoring** : Prometheus, Grafana
 - **DevOps** : pytest, Docker, GitHub Actions
 
 ---
@@ -169,14 +248,16 @@ pip install -r requirements.txt
 ### Avec Docker
 
 ```bash
-# Lancer tous les services (PostgreSQL, API, Dashboard, MLflow)
+# Lancer tous les services
 docker-compose up -d
 
-# Services disponibles :
+# Services disponibles:
 # PostgreSQL: localhost:5432
 # API: http://localhost:8000
 # Dashboard: http://localhost:8501
 # MLflow: http://localhost:5000
+# Prometheus: http://localhost:9090
+# Grafana: http://localhost:3000
 ```
 
 ---
@@ -271,6 +352,7 @@ Pipeline GitHub Actions automatique sur chaque push :
 
 - **Veille technologique** : `docs/VEILLE_TECHNOLOGIQUE.md`
 - **Troubleshooting** : `docs/TROUBLESHOOTING.md`
+- **Monitoring** : `monitoring/README.md`
 - **API** : http://localhost:8000/docs (OpenAPI/Swagger)
 
 ---
