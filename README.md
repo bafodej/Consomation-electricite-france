@@ -36,7 +36,7 @@ Pipeline data science et MLOps end-to-end :
 - Auto-refresh optionnel
 
 ### Machine Learning
-- Benchmarking de 8 modèles comparés
+- Modèle RandomForest optimisé
 - Tracking avec MLflow
 - Cross-validation 5-fold
 - Visualisations des performances
@@ -67,7 +67,6 @@ Pipeline data science et MLOps end-to-end :
 ├── ml/                     # Machine Learning
 │   ├── train_model.py
 │   ├── train_model.ipynb
-│   ├── benchmark_models.ipynb
 │   └── models/
 ├── monitoring/             # Prometheus & Grafana
 │   ├── prometheus.yml          # Config Prometheus
@@ -313,12 +312,6 @@ Visualiser MLflow :
 mlflow ui
 ```
 MLflow UI : http://localhost:5000
-
-### 5. Benchmarking modèles
-
-```bash
-jupyter lab ml/benchmark_models.ipynb
-```
 
 ---
 
