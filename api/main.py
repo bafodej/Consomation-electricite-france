@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import joblib
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -251,6 +253,51 @@ def stats():
         raise HTTPException(
             status_code=500, detail="Erreur lors du calcul des statistiques"
         )
+
+
+@app.get("/predict")
+def predict(limit: Optional[int] = 168):
+    """Prédictions du modèle ML sur les données récentes"""
+    try:
+        if limit <= 0 or limit > 1000:
+            raise HTTPException(status_code=400, detail="Limite invalide (1-1000)")
+
+        model_path = Path(__file__).parent.parent / "ml" / "models" / "rte_conso_model.pkl"
+        if not model_path.exists():
+            raise HTTPException(status_code=503, detail="Modèle ML non disponible")
+
+        model = joblib.load(model_path)
+
+        df = pd.read_sql(
+            f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine
+        )
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.sort_values("datetime")
+
+        df["heure"] = df["datetime"].dt.hour
+        df["jour_semaine"] = df["datetime"].dt.dayofweek
+        df["mois"] = df["datetime"].dt.month
+        df["jour_mois"] = df["datetime"].dt.day
+        df["est_weekend"] = (df["jour_semaine"] >= 5).astype(int)
+        df["prix_spot_eur_mwh"] = 85.0
+        df["est_ferie"] = 0
+        df["est_vacances"] = 0
+
+        features = ["heure", "jour_semaine", "mois", "jour_mois", "est_weekend",
+                    "prix_spot_eur_mwh", "est_ferie", "est_vacances"]
+
+        df["mw_predit"] = model.predict(df[features]).round(0)
+
+        result = df[["datetime", "mw_conso", "mw_predit"]].copy()
+        result["datetime"] = result["datetime"].astype(str)
+        logger.info(f"Prédictions générées pour {len(result)} enregistrements")
+        return result.to_dict("records")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur prédiction: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur lors de la prédiction")
 
 
 if __name__ == "__main__":

@@ -10,9 +10,9 @@ load_dotenv()
 
 print("ETL Dataset...")
 
-dates = pd.date_range("2026-01-01", periods=500, freq="H")
+dates = pd.date_range("2025-01-01", periods=10000, freq="H")
 conso = (
-    45000 + 12000 * np.sin(2 * np.pi * dates.hour / 24) + np.random.normal(0, 1500, 500)
+    45000 + 12000 * np.sin(2 * np.pi * dates.hour / 24) + np.random.normal(0, 1500, len(dates))
 )
 
 df = pd.DataFrame({"datetime": dates, "mw_conso": conso.round(0)})

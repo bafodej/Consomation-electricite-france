@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import time
-import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
 
@@ -35,17 +35,40 @@ with col1:
         st.metric("Creux", f"{stats['creux']} MW")
 
 with col2:
-    if conso:
+    predictions = fetch_data("/predict?limit=168")
+
+    if predictions:
+        df = pd.DataFrame(predictions)
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df = df.sort_values('datetime')
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=df['datetime'], y=df['mw_conso'],
+            name='Consommation réelle', line=dict(color='#1f77b4')
+        ))
+        fig.add_trace(go.Scatter(
+            x=df['datetime'], y=df['mw_predit'],
+            name='Prédiction ML', line=dict(color='#ff7f0e', dash='dash')
+        ))
+        fig.update_layout(
+            title="Consommation réelle vs Prédiction ML (7 derniers jours)",
+            height=400,
+            legend=dict(orientation="h", y=1.1)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("Données")
+        st.dataframe(df[['datetime', 'mw_conso', 'mw_predit']].tail(20), use_container_width=True)
+    elif conso:
         df = pd.DataFrame(conso)
         df['datetime'] = pd.to_datetime(df['datetime'])
         df = df.sort_values('datetime')
-        
-        fig = px.line(df, x='datetime', y='mw_conso', 
-                     title="Consommation horaire",
-                     height=400)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df['datetime'], y=df['mw_conso'],
+                                 name='Consommation réelle', line=dict(color='#1f77b4')))
+        fig.update_layout(title="Consommation horaire", height=400)
         st.plotly_chart(fig, use_container_width=True)
-        
-        st.subheader("Données")
         st.dataframe(df.tail(20), use_container_width=True)
     else:
         st.warning("Données indisponibles")
