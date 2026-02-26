@@ -176,10 +176,23 @@ os.makedirs("database", exist_ok=True)
 
 df.to_csv("data/rte_consumption.csv", index=False)
 
-db_path = os.path.abspath("database/rte_consommation.db")
-engine = create_engine(f"sqlite:///{db_path}")
+database_type = os.getenv("DATABASE_TYPE", "sqlite").lower()
+
+if database_type == "postgresql":
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db_name = os.getenv("POSTGRES_DB", "rte_consommation")
+    user = os.getenv("POSTGRES_USER", "rte_user")
+    password = os.getenv("POSTGRES_PASSWORD", "rte_secure_password")
+    conn_string = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+    print(f"DB: postgresql://{user}:***@{host}:{port}/{db_name}")
+else:
+    db_path = os.path.abspath("database/rte_consommation.db")
+    conn_string = f"sqlite:///{db_path}"
+    print(f"DB: {db_path}")
+
+engine = create_engine(conn_string)
 df.to_sql("consumption", engine, if_exists="replace", index=False)
 
 print("Dataset créé")
 print(f"Lignes: {len(df)}")
-print(f"DB: {db_path}")
