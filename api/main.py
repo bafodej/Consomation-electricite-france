@@ -173,7 +173,7 @@ def metrics():
     """Endpoint Prometheus pour exposition des metriques"""
     try:
         # Mettre a jour metrique nombre d'enregistrements
-        count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0]["cnt"]
+        count = pd.read_sql("SELECT COUNT(*) cnt FROM consumption", engine).iloc[0]["cnt"]
         DB_RECORDS.set(count)
     except Exception as e:
         logger.error(f"Erreur lors de la mise a jour des metriques: {str(e)}")
@@ -185,7 +185,7 @@ def metrics():
 def root():
     """Endpoint racine - vérification de l'état de l'API"""
     try:
-        count = pd.read_sql("SELECT COUNT(*) cnt FROM consommation", engine).iloc[0][
+        count = pd.read_sql("SELECT COUNT(*) cnt FROM consumption", engine).iloc[0][
             "cnt"
         ]
         logger.info(f"Vérification santé API: {count} enregistrements en base")
@@ -203,18 +203,18 @@ def root():
 def conso(limit: Optional[int] = 24):
     """Récupérer les données de consommation récentes"""
     try:
-        if limit <= 0:
+        if limit <= 0: # type: ignore
             logger.warning(f"Limite invalide demandée: {limit}")
             raise HTTPException(
                 status_code=400, detail="La limite doit être supérieure à 0"
             )
 
-        if limit > 1000:
+        if limit > 1000: # type: ignore
             logger.warning(f"Limite trop élevée demandée: {limit}, limitée à 1000")
             limit = 1000
 
         df = pd.read_sql(
-            f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine
+            f"SELECT * FROM consumption ORDER BY datetime DESC LIMIT {limit}", engine
         )
         logger.info(f"Récupération de {len(df)} enregistrements de consommation")
         return df.to_dict("records")
@@ -235,7 +235,7 @@ def stats():
     """Statistiques globales de consommation"""
     try:
         stats_df = pd.read_sql(
-            "SELECT AVG(mw_conso) m, MAX(mw_conso) p, MIN(mw_conso) c FROM consommation",
+            "SELECT AVG(mw_consumption) m, MAX(mw_consumption) p, MIN(mw_consumption) c FROM consumption",
             engine,
         ).iloc[0]
 
@@ -259,7 +259,7 @@ def stats():
 def predict(limit: Optional[int] = 168):
     """Prédictions du modèle ML sur les données récentes"""
     try:
-        if limit <= 0 or limit > 1000:
+        if limit <= 0 or limit > 1000: # type: ignore
             raise HTTPException(status_code=400, detail="Limite invalide (1-1000)")
 
         model_path = Path(__file__).parent.parent / "ml" / "models" / "rte_conso_model.pkl"
@@ -269,26 +269,26 @@ def predict(limit: Optional[int] = 168):
         model = joblib.load(model_path)
 
         df = pd.read_sql(
-            f"SELECT * FROM consommation ORDER BY datetime DESC LIMIT {limit}", engine
+            f"SELECT * FROM consumption ORDER BY datetime DESC LIMIT {limit}", engine
         )
         df["datetime"] = pd.to_datetime(df["datetime"])
         df = df.sort_values("datetime")
 
-        df["heure"] = df["datetime"].dt.hour
-        df["jour_semaine"] = df["datetime"].dt.dayofweek
-        df["mois"] = df["datetime"].dt.month
-        df["jour_mois"] = df["datetime"].dt.day
-        df["est_weekend"] = (df["jour_semaine"] >= 5).astype(int)
-        df["prix_spot_eur_mwh"] = 85.0
-        df["est_ferie"] = 0
-        df["est_vacances"] = 0
+        df["hour"] = df["datetime"].dt.hour
+        df["day_of_week"] = df["datetime"].dt.dayofweek 
+        df["month"] = df["datetime"].dt.month
+        df["day_of_month"] = df["datetime"].dt.day
+        df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
+        df["spot_price_eur_mwh"] = 85.0
+        df["is_holiday"] = 0
+        df["is_school_holiday"] = 0
 
-        features = ["heure", "jour_semaine", "mois", "jour_mois", "est_weekend",
-                    "prix_spot_eur_mwh", "est_ferie", "est_vacances"]
+        features = ["hour", "day_of_week", "month", "day_of_month", "is_weekend",
+                    "spot_price_eur_mwh", "is_holiday", "is_school_holiday"]
 
-        df["mw_predit"] = model.predict(df[features]).round(0)
+        df["mw_predicted"] = model.predict(df[features]).round(0)
 
-        result = df[["datetime", "mw_conso", "mw_predit"]].copy()
+        result = df[["datetime", "mw_consumption", "mw_predicted"]].copy()
         result["datetime"] = result["datetime"].astype(str)
         logger.info(f"Prédictions générées pour {len(result)} enregistrements")
         return result.to_dict("records")

@@ -1,5 +1,5 @@
 """
-Pipeline ETL - Fusion données consommation + météo
+Pipeline ETL - Fusion données consommation multi-sources
 Compétence C3 RNCP: Collecter et préparer des données multi-sources
 """
 
@@ -32,156 +32,123 @@ def get_database_engine():
 
 def extract_data():
     """
-    Extract: Extraction des donnees depuis 3 types de sources differentes
+    Extraction des données depuis 3 types de sources différentes
 
     Returns:
-        tuple: (df_conso, df_calendrier, df_prix)
+        tuple: (df_consumption, df_calendar, df_prices)
     """
-    print("=== EXTRACT - Extraction des donnees ===\n")
-    print("3 types de sources:")
-    print("  Type 1: API (consommation RTE)")
-    print("  Type 2: Fichier texte (jours feries CSV)")
-    print("  Type 3: Web scrapping (prix spot electricite)\n")
+    print("=== EXTRACT - Extraction des données ===\n")
 
     engine = get_database_engine()
 
-    # Extraction consommation (source TYPE 1: API)
-    print("1. Extraction consommation [SOURCE: API RTE]...")
-    df_conso = pd.read_sql("SELECT * FROM consommation ORDER BY datetime", engine)
-    print(f"  {len(df_conso)} enregistrements consommation")
+    # Extraction consommation (source Type 1 : API RTE)
+    print("Extraction consommation [SOURCE: API RTE]...")
+    df_consumption = pd.read_sql("SELECT * FROM consumption ORDER BY datetime", engine)
+    print(f"  {len(df_consumption)} enregistrements consommation")
 
-    # Extraction calendrier jours feries (source TYPE 2: Fichier texte)
-    print("2. Extraction calendrier [SOURCE: Fichier CSV]...")
+    # Extraction calendrier jours fériés (source Type 2 : Fichier CSV)
+    print("Extraction calendrier [SOURCE: Fichier CSV]...")
     try:
-        df_calendrier = pd.read_sql(
-            "SELECT * FROM calendrier_feries ORDER BY datetime", engine
+        df_calendar = pd.read_sql(
+            "SELECT * FROM holiday_calendar ORDER BY datetime", engine
         )
-        print(f"  {len(df_calendrier)} enregistrements calendrier")
+        print(f"  {len(df_calendar)} enregistrements calendrier")
     except Exception as e:
-        print(f"  Table calendrier_feries non trouvee: {e}")
-        print("  Executer d'abord: python src/load_jours_feries.py")
+        print(f"  Table holiday_calendar non trouvée: {e}")
+        print("  Exécuter d'abord: python src/load_jours_feries.py")
         return None, None, None
 
-    # Extraction prix spot (source TYPE 3: Web scrapping)
-    print("3. Extraction prix spot [SOURCE: Web scrapping]...")
+    # Extraction prix spot (source Type 3 : Web scraping)
+    print("Extraction prix spot [SOURCE: Web scraping]...")
     try:
-        df_prix = pd.read_sql(
-            "SELECT * FROM prix_spot_electricite ORDER BY datetime", engine
+        df_prices = pd.read_sql(
+            "SELECT * FROM spot_prices ORDER BY datetime", engine
         )
-        print(f"  {len(df_prix)} enregistrements prix spot")
+        print(f"  {len(df_prices)} enregistrements prix spot")
     except Exception as e:
-        print(f"  Table prix_spot_electricite non trouvee: {e}")
-        print("  Executer d'abord: python src/scrape_prix_electricite.py")
+        print(f"  Table spot_prices non trouvée: {e}")
+        print("  Exécuter d'abord: python src/scrape_prix_electricite.py")
         return None, None, None
 
-    return df_conso, df_calendrier, df_prix
+    return df_consumption, df_calendar, df_prices
 
 
-def transform_data(df_conso, df_calendrier, df_prix):
+def transform_data(df_consumption, df_calendar, df_prices):
     """
-    Transform: Nettoyage, validation, fusion 3 types sources
+    Nettoyage, validation et fusion des 3 sources
 
     Args:
-        df_conso: DataFrame consommation (API)
-        df_calendrier: DataFrame calendrier feries (Fichier texte)
-        df_prix: DataFrame prix spot (Web scrapping)
+        df_consumption: DataFrame consommation (API)
+        df_calendar: DataFrame calendrier fériés (Fichier CSV)
+        df_prices: DataFrame prix spot (Web scraping)
 
     Returns:
-        DataFrame fusionne et nettoye
+        DataFrame fusionné et nettoyé
     """
-    print("\n=== TRANSFORM - Transformation des donnees ===\n")
+    print("\n=== TRANSFORM - Transformation des données ===\n")
 
-    # Conversion types datetime
-    df_conso["datetime"] = pd.to_datetime(df_conso["datetime"])
-    df_calendrier["datetime"] = pd.to_datetime(df_calendrier["datetime"])
-    df_prix["datetime"] = pd.to_datetime(df_prix["datetime"])
+    # Conversion des types datetime
+    df_consumption["datetime"] = pd.to_datetime(df_consumption["datetime"])
+    df_calendar["datetime"] = pd.to_datetime(df_calendar["datetime"])
+    df_prices["datetime"] = pd.to_datetime(df_prices["datetime"])
 
-    print(
-        f"Periode consommation: {df_conso['datetime'].min()} -> {df_conso['datetime'].max()}"
-    )
-    print(
-        f"Periode calendrier: {df_calendrier['datetime'].min()} -> {df_calendrier['datetime'].max()}"
-    )
-    print(
-        f"Periode prix spot: {df_prix['datetime'].min()} -> {df_prix['datetime'].max()}"
-    )
+    print(f"Période consommation: {df_consumption['datetime'].min()} -> {df_consumption['datetime'].max()}")
+    print(f"Période calendrier: {df_calendar['datetime'].min()} -> {df_calendar['datetime'].max()}")
+    print(f"Période prix spot: {df_prices['datetime'].min()} -> {df_prices['datetime'].max()}")
 
-    # Fusion 1: Consommation + Prix spot
-    print("\nFusion 1/2: Consommation (API) + Prix spot (Scrapping)...")
+    # Fusion consommation + prix spot (INNER JOIN)
+    print("\nFusion consommation (API) + prix spot (scraping)...")
     df_merged = pd.merge(
-        df_conso, df_prix, on="datetime", how="inner", suffixes=("", "_prix")
+        df_consumption, df_prices, on="datetime", how="inner", suffixes=("", "_prix")
     )
-    print(f"  {len(df_merged)} enregistrements apres fusion 1")
+    print(f"  {len(df_merged)} enregistrements après fusion")
 
-    # Fusion 2: + Calendrier jours feries
-    print("Fusion 2/2: + Calendrier (Fichier CSV)...")
-    calendrier_cols = ["datetime", "est_ferie", "est_vacances", "nom_ferie"]
-    df_calendrier_mini = df_calendrier[calendrier_cols]
+    # Fusion + calendrier jours fériés (LEFT JOIN)
+    print("Fusion + calendrier (Fichier CSV)...")
+    calendar_cols = ["datetime", "is_holiday", "is_school_holiday", "holiday_name"]
     df_merged = pd.merge(
-        df_merged, df_calendrier_mini, on="datetime", how="left", suffixes=("", "_cal")
+        df_merged, df_calendar[calendar_cols], on="datetime", how="left", suffixes=("", "_cal")
     )
-    print(f"  {len(df_merged)} enregistrements apres fusion 2")
+    print(f"  {len(df_merged)} enregistrements après fusion")
 
-    # Supprimer colonnes redondantes
+    # Suppression des colonnes redondantes
     cols_to_drop = [
-        col
-        for col in df_merged.columns
+        col for col in df_merged.columns
         if col.endswith("_meteo") or col == "created_at"
     ]
     df_merged = df_merged.drop(columns=cols_to_drop, errors="ignore")
 
-    # Créer features temporelles
-    print("\nCréation features temporelles...")
-    df_merged["heure"] = df_merged["datetime"].dt.hour
-    df_merged["jour_semaine"] = df_merged["datetime"].dt.dayofweek
-    df_merged["mois"] = df_merged["datetime"].dt.month
-    df_merged["jour_mois"] = df_merged["datetime"].dt.day
-    df_merged["est_weekend"] = (df_merged["jour_semaine"] >= 5).astype(int)
+    # Création des variables temporelles
+    print("\nCréation des variables temporelles...")
+    df_merged["hour"] = df_merged["datetime"].dt.hour # type: ignore
+    df_merged["day_of_week"] = df_merged["datetime"].dt.dayofweek # type: ignore
+    df_merged["month"] = df_merged["datetime"].dt.month # type: ignore
+    df_merged["day_of_month"] = df_merged["datetime"].dt.day # type: ignore
+    df_merged["is_weekend"] = (df_merged["day_of_week"] >= 5).astype(int)
 
-    # Vérifier valeurs manquantes
+    # Traitement des valeurs manquantes
     missing = df_merged.isnull().sum()
     if missing.any():
         print(f"\nValeurs manquantes:\n{missing[missing > 0]}")
         df_merged = df_merged.dropna()
-        print(f"  Lignes supprimées: {len(df_conso) - len(df_merged)}")
 
-    # Remplir valeurs manquantes pour colonnes calendrier
-    df_merged["est_ferie"] = df_merged["est_ferie"].fillna(False).astype(int)
-    df_merged["est_vacances"] = df_merged["est_vacances"].fillna(False).astype(int)
-    df_merged["nom_ferie"] = df_merged["nom_ferie"].fillna("")
+    # Remplissage valeurs manquantes pour colonnes calendrier
+    df_merged["is_holiday"] = df_merged["is_holiday"].fillna(False).astype(int)
+    df_merged["is_school_holiday"] = df_merged["is_school_holiday"].fillna(False).astype(int)
+    df_merged["holiday_name"] = df_merged["holiday_name"].fillna("")
 
     # Statistiques finales
-    print("\n=== Statistiques donnees fusionnees ===")
+    print("\n=== Statistiques données fusionnées ===")
     print(f"Total enregistrements: {len(df_merged)}")
     print(f"Colonnes: {list(df_merged.columns)}")
-    print(
-        f"Jours feries: {df_merged['est_ferie'].sum()} heures ({df_merged['est_ferie'].sum()/24:.0f} jours)"
-    )
-    print(
-        f"Vacances scolaires: {df_merged['est_vacances'].sum()} heures ({df_merged['est_vacances'].sum()/24:.0f} jours)"
-    )
-    print(f"Prix spot moyen: {df_merged['prix_spot_eur_mwh'].mean():.2f} EUR/MWh")
-    print("\nCorrelations avec consommation:")
-
-    corr_vars = [
-        "prix_spot_eur_mwh",
-        "heure",
-        "jour_semaine",
-        "est_ferie",
-        "est_vacances",
-        "est_weekend",
-    ]
-    for var in corr_vars:
-        if var in df_merged.columns:
-            corr = df_merged["mw_conso"].corr(df_merged[var])
-            print(f"  {var}: {corr:.3f}")
+    print(f"Prix spot moyen: {df_merged['spot_price_eur_mwh'].mean():.2f} EUR/MWh")
 
     return df_merged
 
 
-def load_data(df, table_name="conso_meteo_enrichi"):
+def load_data(df, table_name="enriched_consumption"):
     """
-    Load: Chargement dans la base de données
+    Chargement dans la base de données
 
     Args:
         df: DataFrame à charger
@@ -195,12 +162,10 @@ def load_data(df, table_name="conso_meteo_enrichi"):
     df.to_sql(table_name, engine, if_exists="replace", index=False)
 
     # Vérification
-    count = pd.read_sql(f"SELECT COUNT(*) as total FROM {table_name}", engine).iloc[0][
-        "total"
-    ]
+    count = pd.read_sql(f"SELECT COUNT(*) as total FROM {table_name}", engine).iloc[0]["total"]
     print(f"  {count} enregistrements chargés")
 
-    # Sauvegarde CSV
+    # Export CSV
     os.makedirs("data", exist_ok=True)
     csv_path = f"data/{table_name}.csv"
     df.to_csv(csv_path, index=False)
@@ -208,36 +173,29 @@ def load_data(df, table_name="conso_meteo_enrichi"):
 
 
 def run_etl_pipeline():
-    """Execution complete du pipeline ETL - 3 types sources differents"""
+    """Exécution complète du pipeline ETL - 3 types de sources"""
     print("=" * 60)
-    print("   Pipeline ETL - Fusion 3 Types de Sources")
-    print("   API + Fichier Texte + Web Scrapping")
+    print("   Pipeline ETL - Fusion 3 types de sources")
+    print("   API + Fichier CSV + Web Scraping")
     print("=" * 60 + "\n")
-    print("Types de sources:")
-    print("  1. API: RTE eCO2mix (consommation)")
-    print("  2. Fichier texte: CSV (jours feries)")
-    print("  3. Web scrapping: Prix spot electricite\n")
 
-    # EXTRACT
-    df_conso, df_calendrier, df_prix = extract_data()
+    df_consumption, df_calendar, df_prices = extract_data()
 
-    if df_conso is None or df_calendrier is None or df_prix is None:
-        print("\nERREUR: Donnees source manquantes")
-        print("Executer dans l'ordre:")
-        print("  1. python src/create_dataset.py")
-        print("  2. python src/load_jours_feries.py")
-        print("  3. python src/scrape_prix_electricite.py")
+    if df_consumption is None or df_calendar is None or df_prices is None:
+        print("\nERREUR: Données source manquantes")
+        print("Exécuter dans l'ordre:")
+        print("  python src/create_dataset.py")
+        print("  python src/load_jours_feries.py")
+        print("  python src/scrape_prix_electricite.py")
         return False
 
-    # TRANSFORM
-    df_enrichi = transform_data(df_conso, df_calendrier, df_prix)
+    df_enriched = transform_data(df_consumption, df_calendar, df_prices)
 
-    # LOAD
-    load_data(df_enrichi, table_name="conso_enrichi_3sources")
+    load_data(df_enriched, table_name="enriched_consumption")
 
     print("\n" + "=" * 60)
-    print("        Pipeline ETL termine avec succes")
-    print("        3 types sources integrees")
+    print("        Pipeline ETL terminé avec succès")
+    print("        3 types de sources intégrées")
     print("=" * 60)
 
     return True

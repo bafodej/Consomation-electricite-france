@@ -15,7 +15,7 @@ from datetime import datetime
 
 def load_data():
     """Charger les donnees enrichies (3 sources)"""
-    data_path = Path(__file__).parent.parent / "data" / "conso_enrichi_3sources.csv"
+    data_path = Path(__file__).parent.parent / "data" / "enriched_consumption.csv"
 
     if not data_path.exists():
         print(f"ERREUR: Fichier introuvable: {data_path}")
@@ -33,17 +33,17 @@ def prepare_features(df):
 
     # Features disponibles avec les 3 sources
     features = [
-        "heure",  # Feature temporelle
-        "jour_semaine",  # Feature temporelle
-        "mois",  # Feature temporelle
-        "jour_mois",  # Feature temporelle
-        "est_weekend",  # Feature temporelle
-        "prix_spot_eur_mwh",  # Source 3: Web scrapping
-        "est_ferie",  # Source 2: Fichier texte
-        "est_vacances",  # Source 2: Fichier texte
+        "hour",  # Feature temporelle
+        "day_of_week",  # Feature temporelle
+        "month",  # Feature temporelle
+        "day_of_month",  # Feature temporelle
+        "is_weekend",  # Feature temporelle
+        "spot_price_eur_mwh",  # Source 3: Web scrapping
+        "is_holiday",  # Source 2: Fichier texte
+        "is_school_holiday",  # Source 2: Fichier texte
     ]
 
-    target = "mw_conso"  # Source 1: API
+    target = "mw_consumption"  # Source 1: API
 
     # Verifier que toutes les colonnes existent
     missing_cols = [col for col in features if col not in df.columns]

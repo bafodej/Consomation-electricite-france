@@ -1,135 +1,233 @@
 """
-Scrapping web des prix spot electricite France
-Source: Web scraping de donnees publiques RTE
+Scraping des prix spot électricité France
+Sources : ENTSO-E API (primaire) → Selenium éCO2mix (secondaire) → Données synthétiques (fallback)
 """
 
 import os
-import re
-from datetime import datetime, timedelta
+import sqlite3
+import time
 
+import numpy as np
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
 load_dotenv()
 
 
-def scrape_prix_spot_simule(start_date, end_date):
+def fetch_prices_energy_charts(start_date, end_date):
     """
-    Simule le scrapping de prix spot electricite
-    (En production, scrapper depuis site EPEX/Powernext)
+    Récupère les prix spot Day-Ahead France depuis energy-charts.info (Fraunhofer ISE)
+    Source : données EPEX SPOT, API publique sans authentification
 
     Args:
-        start_date: Date debut YYYY-MM-DD
+        start_date: Date début YYYY-MM-DD
         end_date: Date fin YYYY-MM-DD
 
     Returns:
-        DataFrame avec datetime et prix_spot_eur_mwh
+        DataFrame avec datetime et spot_price_eur_mwh
     """
-    print(f"Scrapping prix spot electricite {start_date} -> {end_date}...")
-    print("  Source: Donnees publiques simulees (remplacer par vrai scrapper)")
+    print("  Appel API energy-charts.info (Fraunhofer ISE)...")
 
-    # Generation de prix spot realistes bases sur patterns reels
-    # Prix moyens France 2024-2026 : 60-120 EUR/MWh
+    url = "https://api.energy-charts.info/price"
+    params = {
+        "bzn": "FR",
+        "start": f"{start_date}T00:00:00+00:00",
+        "end": f"{end_date.split()[0]}T23:59:59+00:00",
+    }
+
+    response = requests.get(url, params=params, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+
+    # Conversion timestamps Unix → datetime
+    df = pd.DataFrame({
+        "datetime": pd.to_datetime(data["unix_seconds"], unit="s", utc=True),
+        "spot_price_eur_mwh": data["price"],
+    })
+
+    # Suppression du fuseau horaire pour cohérence avec le reste du projet
+    df["datetime"] = df["datetime"].dt.tz_convert("Europe/Paris").dt.tz_localize(None)  # type: ignore[union-attr]
+    df["spot_price_eur_mwh"] = df["spot_price_eur_mwh"].round(2)
+
+    # Supprimer les valeurs nulles (données manquantes dans l'API)
+    df = df.dropna(subset=["spot_price_eur_mwh"])
+
+    print(f"  {len(df)} prix réels récupérés depuis energy-charts.info")
+    return df
+
+
+def scrape_with_selenium(start_date, end_date):
+    """
+    Scraping des prix éCO2mix via Selenium (page JavaScript dynamique)
+    Source : https://www.rte-france.com/eco2mix/les-donnees-de-marche
+
+    Args:
+        start_date: Date début YYYY-MM-DD
+        end_date: Date fin YYYY-MM-DD
+
+    Returns:
+        DataFrame avec datetime et spot_price_eur_mwh, ou None si échec
+    """
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
+    from webdriver_manager.chrome import ChromeDriverManager
+
+    print("  Lancement Selenium (headless Chrome)...")
+
+    options = webdriver.ChromeOptions() # type: ignore
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()), options=options
+    ) # type: ignore
+
+    try:
+        url = "https://www.rte-france.com/eco2mix/les-donnees-de-marche"
+        print(f"  Chargement : {url}")
+        driver.get(url)
+
+        # Attendre que la page JavaScript se charge
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        time.sleep(3)
+
+        print("  Page éCO2mix chargée")
+        print("  (Extraction des sélecteurs à adapter selon la structure réelle de la page)")
+
+        # Note : Les sélecteurs CSS/XPath dépendent de la structure exacte de la page RTE.
+        # En production, inspecter le DOM avec les DevTools pour identifier les bons sélecteurs.
+        # Exemple de structure attendue :
+        # rows = driver.find_elements(By.CSS_SELECTOR, "table.market-data tr")
+        # for row in rows: extraire datetime + prix
+
+        return None  # Retourner None si l'extraction complète n'est pas encore implémentée
+
+    except Exception as e:
+        print(f"  Selenium échoué : {e}")
+        return None
+    finally:
+        driver.quit()
+
+
+def generate_synthetic_prices(start_date, end_date):
+    """
+    Génère des prix spot synthétiques réalistes (fallback)
+    Basés sur les patterns réels France 2024-2026 : 60-120 EUR/MWh
+
+    Args:
+        start_date: Date début YYYY-MM-DD
+        end_date: Date fin YYYY-MM-DD
+
+    Returns:
+        DataFrame avec datetime et spot_price_eur_mwh
+    """
+    print("  Génération de prix synthétiques (fallback)...")
     date_range = pd.date_range(start=start_date, end=end_date, freq="h")
 
-    prix_base = 80  # Prix de base EUR/MWh
+    base_price = 80  # Prix de base EUR/MWh
 
-    # Variations horaires (heures pleines plus cheres)
-    variation_horaire = [
-        prix_base + 20 * (1 if 8 <= h <= 20 else 0.5) for h in range(24)
+    # Variations horaires (heures pleines plus chères)
+    hourly_variation = [
+        base_price + 20 * (1 if 8 <= h <= 20 else 0.5) for h in range(24)
     ]
 
-    # Generer prix avec variations
-    import numpy as np
-
     np.random.seed(42)
-    prix_spot = []
+    spot_prices = []
 
     for dt in date_range:
-        heure = dt.hour
-        prix_heure = variation_horaire[heure]
-
-        # Ajouter variations aleatoires
+        hour_price = hourly_variation[dt.hour]
         variation = np.random.normal(0, 10)
 
         # Weekend moins cher
         if dt.dayofweek >= 5:
-            prix_heure *= 0.85
+            hour_price *= 0.85
 
-        prix_final = max(30, prix_heure + variation)  # Prix min 30 EUR/MWh
-        prix_spot.append(prix_final)
+        final_price = max(30, hour_price + variation)
+        spot_prices.append(final_price)
 
-    df = pd.DataFrame({"datetime": date_range, "prix_spot_eur_mwh": prix_spot})
+    df = pd.DataFrame({"datetime": date_range, "spot_price_eur_mwh": spot_prices})
+    df["spot_price_eur_mwh"] = df["spot_price_eur_mwh"].round(2)
 
-    df["prix_spot_eur_mwh"] = df["prix_spot_eur_mwh"].round(2)
-
-    print(f"  {len(df)} prix scrappe")
-
+    print(f"  {len(df)} prix synthétiques générés")
     return df
 
 
-def scrape_prix_rte_web_simule():
+def scrape_spot_prices(start_date, end_date):
     """
-    Exemple de scrapping HTML simule
-    En production: scrapper depuis https://www.rte-france.com/eco2mix
+    Orchestre la récupération des prix : ENTSO-E → Selenium → Synthétique
+
+    Args:
+        start_date: Date début YYYY-MM-DD
+        end_date: Date fin YYYY-MM-DD
 
     Returns:
-        DataFrame avec donnees scrappees
+        DataFrame avec datetime et spot_price_eur_mwh
     """
-    print("\nSimulation scrapping web HTML...")
+    print(f"Récupération prix spot électricité {start_date} → {end_date}...")
 
-    # En production, faire:
-    # url = "https://www.rte-france.com/eco2mix/les-donnees-de-marche"
-    # response = requests.get(url)
-    # soup = BeautifulSoup(response.content, 'html.parser')
-    # Extraire donnees depuis les tableaux HTML
+    # 1er choix : API energy-charts.info (Fraunhofer ISE — données EPEX SPOT)
+    try:
+        df = fetch_prices_energy_charts(start_date, end_date)
+        print("  Source : energy-charts.info (données réelles EPEX SPOT)")
+        return df
+    except Exception as e:
+        print(f"  energy-charts.info échoué : {e}")
 
-    # Pour demo, generer donnees
-    print("  (En production: parser HTML avec BeautifulSoup)")
-    print("  Simulation OK")
+    # second choix:: Selenium éCO2mix
+    try:
+        df = scrape_with_selenium(start_date, end_date)
+        if df is not None:
+            print("  Source : Selenium éCO2mix (données réelles)")
+            return df
+        print("  Selenium : page chargée mais extraction non complète")
+    except Exception as e:
+        print(f"  Selenium échoué : {e}")
 
-    return None
+    # Fallback : données synthétiques
+    print("  Source : données synthétiques")
+    return generate_synthetic_prices(start_date, end_date)
 
 
-def validate_prix_data(df):
+def validate_price_data(df):
     """
-    Validation et nettoyage des donnees scrappees
+    Validation et nettoyage des données scrapées
 
     Args:
         df: DataFrame prix
 
     Returns:
-        DataFrame nettoye
+        DataFrame nettoyé
     """
-    print("\nValidation des donnees scrappees...")
+    print("\nValidation des données...")
 
-    # Verifier valeurs manquantes
+    # Vérifier valeurs manquantes
     missing = df.isnull().sum()
     if missing.any():
-        print(f"  Valeurs manquantes: {missing.sum()}")
+        print(f"  Valeurs manquantes : {missing.sum()}")
         df = df.dropna()
 
-    # Verifier plages de valeurs realistes (prix electricite France)
-    # Prix spot historiques: 20-500 EUR/MWh (pics exceptionnels)
-    invalid_prix = (df["prix_spot_eur_mwh"] < 0) | (df["prix_spot_eur_mwh"] > 500)
-
-    if invalid_prix.any():
-        print(
-            f"  Valeurs aberrantes detectees: {invalid_prix.sum()} (prix < 0 ou > 500)"
-        )
-        # Remplacer par mediane
-        df.loc[invalid_prix, "prix_spot_eur_mwh"] = df["prix_spot_eur_mwh"].median()
+    # Vérifier plages de valeurs réalistes (prix électricité France)
+    invalid_prices = (df["spot_price_eur_mwh"] < 0) | (df["spot_price_eur_mwh"] > 500)
+    if invalid_prices.any():
+        print(f"  Valeurs aberrantes : {invalid_prices.sum()} (remplacées par médiane)")
+        df.loc[invalid_prices, "spot_price_eur_mwh"] = df["spot_price_eur_mwh"].median()
 
     # Supprimer doublons
     before = len(df)
     df = df.drop_duplicates(subset=["datetime"])
     if len(df) < before:
-        print(f"  {before - len(df)} doublons supprimes")
+        print(f"  {before - len(df)} doublons supprimés")
 
-    print(f"  Validation OK - {len(df)} enregistrements valides")
+    print(f"  Validation OK — {len(df)} enregistrements valides")
     return df
 
 
@@ -151,63 +249,52 @@ def save_to_database(df, database_type="sqlite"):
         password = os.getenv("POSTGRES_PASSWORD", "rte_secure_password")
         conn_string = f"postgresql://{user}:{password}@{host}:{port}/{db}"
         engine = create_engine(conn_string)
+        with engine.connect() as conn:
+            df.to_sql("spot_prices", conn, if_exists="replace", index=False)
+            count = pd.read_sql(
+                "SELECT COUNT(*) as total FROM spot_prices", conn
+            ).iloc[0]["total"]
     else:
         db_path = os.path.abspath("database/rte_consommation.db")
-        engine = create_engine(f"sqlite:///{db_path}")
-
-    # Sauvegarder
-    df.to_sql("prix_spot_electricite", engine, if_exists="replace", index=False)
-
-    # Verifier
-    count = pd.read_sql(
-        "SELECT COUNT(*) as total FROM prix_spot_electricite", engine
-    ).iloc[0]["total"]
-    print(f"  {count} enregistrements prix spot en base")
+        with sqlite3.connect(db_path) as conn:
+            df.to_sql("spot_prices", conn, if_exists="replace", index=False)
+            count = pd.read_sql(
+                "SELECT COUNT(*) as total FROM spot_prices", conn
+            ).iloc[0]["total"]
+    print(f"  {count} enregistrements en base")
 
 
-def save_to_csv(df, filename="data/prix_spot_electricite.csv"):
+def save_to_csv(df, filename="data/spot_prices.csv"):
     """Sauvegarde en CSV"""
     os.makedirs("data", exist_ok=True)
     df.to_csv(filename, index=False)
-    print(f"  Sauvegarde: {filename}")
+    print(f"  Sauvegarde : {filename}")
 
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("   Scrapping web - Prix spot electricite France")
+    print("   Scraping prix spot électricité France")
+    print("   energy-charts.info (EPEX SPOT) → Selenium éCO2mix → Synthétique")
     print("=" * 60 + "\n")
 
-    # Periode correspondant aux donnees de consommation
     start = "2026-01-01"
-    end = "2026-01-21 23:00:00"
+    end = "2026-02-15 23:00:00"
 
-    # Scrapping (simule)
-    df_prix = scrape_prix_spot_simule(start, end)
+    df_prices = scrape_spot_prices(start, end)
+    df_prices = validate_price_data(df_prices)
 
-    # Demo scrapping HTML
-    scrape_prix_rte_web_simule()
+    print("\n" + "=" * 60)
+    print("   Statistiques prix spot")
+    print("=" * 60)
+    print(f"Prix moyen  : {df_prices['spot_price_eur_mwh'].mean():.2f} EUR/MWh")
+    print(f"Prix min    : {df_prices['spot_price_eur_mwh'].min():.2f} EUR/MWh")
+    print(f"Prix max    : {df_prices['spot_price_eur_mwh'].max():.2f} EUR/MWh")
+    print(f"Écart-type  : {df_prices['spot_price_eur_mwh'].std():.2f} EUR/MWh")
 
-    if df_prix is not None:
-        # Validation
-        df_prix = validate_prix_data(df_prix)
+    save_to_csv(df_prices)
+    database_type = os.getenv("DATABASE_TYPE", "sqlite")
+    save_to_database(df_prices, database_type)
 
-        # Statistiques descriptives
-        print("\n" + "=" * 60)
-        print("   Statistiques prix spot")
-        print("=" * 60)
-        print(f"Prix moyen: {df_prix['prix_spot_eur_mwh'].mean():.2f} EUR/MWh")
-        print(f"Prix min: {df_prix['prix_spot_eur_mwh'].min():.2f} EUR/MWh")
-        print(f"Prix max: {df_prix['prix_spot_eur_mwh'].max():.2f} EUR/MWh")
-        print(f"Ecart-type: {df_prix['prix_spot_eur_mwh'].std():.2f} EUR/MWh")
-
-        # Sauvegarde
-        save_to_csv(df_prix)
-        database_type = os.getenv("DATABASE_TYPE", "sqlite")
-        save_to_database(df_prix, database_type)
-
-        print("\n" + "=" * 60)
-        print("   Scrapping termine")
-        print("=" * 60)
-    else:
-        print("\nEchec du scrapping")
-        exit(1)
+    print("\n" + "=" * 60)
+    print("   Scraping terminé")
+    print("=" * 60)

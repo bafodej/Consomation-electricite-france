@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 load_dotenv()
 
 
-def load_jours_feries_from_file(filepath="data/jours_feries_2026.csv"):
+def load_holidays_from_file(filepath="data/public_holidays_2026.csv"):
     """
     Charge les jours fériés depuis fichier CSV
 
@@ -31,8 +31,9 @@ def load_jours_feries_from_file(filepath="data/jours_feries_2026.csv"):
     # Lecture fichier CSV
     df = pd.read_csv(filepath)
 
-    # Conversion date
+    # Conversion date et renommage colonne
     df["date"] = pd.to_datetime(df["date"])
+    df = df.rename(columns={"nom_ferie": "holiday_name"})
 
     print(f"  {len(df)} jours fériés chargés")
     print(f"  Colonnes: {list(df.columns)}")
@@ -40,12 +41,12 @@ def load_jours_feries_from_file(filepath="data/jours_feries_2026.csv"):
     return df
 
 
-def enrich_with_vacances_scolaires(df_feries):
+def enrich_with_school_holidays(df_holidays):
     """
     Enrichit avec les périodes de vacances scolaires 2026 (Zone C - Paris)
 
     Args:
-        df_feries: DataFrame jours fériés
+        df_holidays: DataFrame jours fériés
 
     Returns:
         DataFrame enrichi avec vacances
@@ -53,7 +54,7 @@ def enrich_with_vacances_scolaires(df_feries):
     print("\nAjout des vacances scolaires 2026...")
 
     # Périodes vacances scolaires 2026 (Zone C - Île-de-France)
-    vacances = [
+    school_holidays = [
         ("2026-02-21", "2026-03-08", "Vacances d'hiver"),
         ("2026-04-18", "2026-05-03", "Vacances de printemps"),
         ("2026-07-04", "2026-08-31", "Vacances d'été"),
@@ -61,8 +62,8 @@ def enrich_with_vacances_scolaires(df_feries):
         ("2026-12-19", "2026-01-03", "Vacances de Noël"),
     ]
 
-    vacances_rows = []
-    for start, end, nom in vacances:
+    holiday_rows = []
+    for start, end, name in school_holidays:
         start_date = pd.to_datetime(start)
         end_date = pd.to_datetime(end)
 
@@ -70,15 +71,15 @@ def enrich_with_vacances_scolaires(df_feries):
         date_range = pd.date_range(start_date, end_date, freq="D")
 
         for date in date_range:
-            vacances_rows.append({"date": date, "nom_ferie": nom, "type": "vacances"})
+            holiday_rows.append({"date": date, "holiday_name": name, "type": "vacances"})
 
-    df_vacances = pd.DataFrame(vacances_rows)
+    df_school_holidays = pd.DataFrame(holiday_rows)
 
     # Fusion avec jours fériés
-    df_combined = pd.concat([df_feries, df_vacances], ignore_index=True)
+    df_combined = pd.concat([df_holidays, df_school_holidays], ignore_index=True)
     df_combined = df_combined.sort_values("date").reset_index(drop=True)
 
-    print(f"  {len(df_vacances)} jours de vacances ajoutés")
+    print(f"  {len(df_school_holidays)} jours de vacances ajoutés")
     print(f"  Total: {len(df_combined)} jours spéciaux")
 
     return df_combined
@@ -101,7 +102,7 @@ def create_hourly_calendar(start_date="2026-01-01", end_date="2026-12-31"):
     date_range = pd.date_range(start=start_date, end=f"{end_date} 23:00:00", freq="h")
 
     df_calendar = pd.DataFrame({"datetime": date_range})
-    df_calendar["date"] = df_calendar["datetime"].dt.date
+    df_calendar["date"] = df_calendar["datetime"].dt.date  # type: ignore
     df_calendar["date"] = pd.to_datetime(df_calendar["date"])
 
     print(f"  {len(df_calendar)} heures générées")
@@ -109,51 +110,51 @@ def create_hourly_calendar(start_date="2026-01-01", end_date="2026-12-31"):
     return df_calendar
 
 
-def merge_calendar_with_feries(df_calendar, df_feries):
+def merge_calendar_with_holidays(df_calendar, df_holidays):
     """
     Fusionne le calendrier avec les jours fériés
 
     Args:
         df_calendar: Calendrier horaire
-        df_feries: Jours fériés et vacances
+        df_holidays: Jours fériés et vacances
 
     Returns:
         DataFrame enrichi
     """
     print("\nFusion calendrier avec jours fériés...")
 
-    # Créer indicateurs
-    df_feries["est_ferie"] = (df_feries["type"] == "fixe") | (
-        df_feries["type"] == "mobile"
+    # Créer indicateurs binaires
+    df_holidays["is_holiday"] = (df_holidays["type"] == "fixe") | (
+        df_holidays["type"] == "mobile"
     )
-    df_feries["est_vacances"] = df_feries["type"] == "vacances"
+    df_holidays["is_school_holiday"] = df_holidays["type"] == "vacances"
 
     # Grouper par date (plusieurs types possibles pour même jour)
-    df_feries_agg = (
-        df_feries.groupby("date")
-        .agg({"est_ferie": "max", "est_vacances": "max", "nom_ferie": "first"})
+    df_holidays_agg = (
+        df_holidays.groupby("date")
+        .agg({"is_holiday": "max", "is_school_holiday": "max", "holiday_name": "first"})
         .reset_index()
     )
 
     # Fusion avec calendrier
-    df_merged = pd.merge(df_calendar, df_feries_agg, on="date", how="left")
+    df_merged = pd.merge(df_calendar, df_holidays_agg, on="date", how="left")
 
-    # Remplir NaN avec False/vide
-    df_merged["est_ferie"] = df_merged["est_ferie"].fillna(False).astype(bool)
-    df_merged["est_vacances"] = df_merged["est_vacances"].fillna(False).astype(bool)
-    df_merged["nom_ferie"] = df_merged["nom_ferie"].fillna("")
+    # Remplir valeurs manquantes
+    df_merged["is_holiday"] = df_merged["is_holiday"].fillna(False).astype(bool)
+    df_merged["is_school_holiday"] = df_merged["is_school_holiday"].fillna(False).astype(bool)
+    df_merged["holiday_name"] = df_merged["holiday_name"].fillna("")
 
     # Statistiques
-    nb_feries = df_merged["est_ferie"].sum()
-    nb_vacances = df_merged["est_vacances"].sum()
+    nb_holidays = df_merged["is_holiday"].sum()
+    nb_school_holidays = df_merged["is_school_holiday"].sum()
 
-    print(f"  Heures en jour férié: {nb_feries}")
-    print(f"  Heures en vacances: {nb_vacances}")
+    print(f"  Heures en jour férié: {nb_holidays}")
+    print(f"  Heures en vacances: {nb_school_holidays}")
 
     return df_merged
 
 
-def save_to_database(df, table_name="calendrier_feries"):
+def save_to_database(df, table_name="holiday_calendar"):
     """
     Sauvegarde dans la base de données
 
@@ -178,10 +179,10 @@ def save_to_database(df, table_name="calendrier_feries"):
 
     engine = create_engine(conn_string)
 
-    # Sauvegarder
+    # Sauvegarde en base
     df.to_sql(table_name, engine, if_exists="replace", index=False)
 
-    # Vérifier
+    # Vérification
     count = pd.read_sql(f"SELECT COUNT(*) as total FROM {table_name}", engine).iloc[0][
         "total"
     ]
@@ -193,29 +194,29 @@ if __name__ == "__main__":
     print("   Chargement jours feries (fichier CSV)")
     print("=" * 50 + "\n")
 
-    # 1. Charger fichier CSV
-    df_feries = load_jours_feries_from_file("data/jours_feries_2026.csv")
+    # Charger fichier CSV
+    df_holidays = load_holidays_from_file("data/public_holidays_2026.csv")
 
-    # 2. Enrichir avec vacances scolaires
-    df_feries_enrichi = enrich_with_vacances_scolaires(df_feries)
+    # Enrichir avec vacances scolaires
+    df_holidays_enriched = enrich_with_school_holidays(df_holidays)
 
     print("\n=== Aperçu jours fériés ===")
-    print(df_feries_enrichi.head(15))
+    print(df_holidays_enriched.head(15))
 
-    # 3. Créer calendrier horaire
+    # Créer calendrier horaire
     df_calendar = create_hourly_calendar("2026-01-01", "2026-12-31")
 
-    # 4. Fusionner
-    df_final = merge_calendar_with_feries(df_calendar, df_feries_enrichi)
+    # Fusionner calendrier et jours fériés
+    df_final = merge_calendar_with_holidays(df_calendar, df_holidays_enriched)
 
-    # 5. Sauvegarder
-    save_to_database(df_final, "calendrier_feries")
+    # Sauvegarder en base
+    save_to_database(df_final, "holiday_calendar")
 
     # Export CSV
-    output_csv = "data/calendrier_feries_2026.csv"
+    output_csv = "data/holiday_calendar_2026.csv"
     df_final.to_csv(output_csv, index=False)
     print(f"\nExport CSV: {output_csv}")
 
     print("\n" + "=" * 50)
-    print("           Traitement termine")
+    print("           Traitement terminé")
     print("=" * 50)

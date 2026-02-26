@@ -44,11 +44,11 @@ with col2:
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=df['datetime'], y=df['mw_conso'],
+            x=df['datetime'], y=df['mw_consumption'],
             name='Consommation réelle', line=dict(color='#1f77b4')
         ))
         fig.add_trace(go.Scatter(
-            x=df['datetime'], y=df['mw_predit'],
+            x=df['datetime'], y=df['mw_predicted'],
             name='Prédiction ML', line=dict(color='#ff7f0e', dash='dash')
         ))
         fig.update_layout(
@@ -59,13 +59,13 @@ with col2:
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Données")
-        st.dataframe(df[['datetime', 'mw_conso', 'mw_predit']].tail(20), use_container_width=True)
+        st.dataframe(df[['datetime', 'mw_consumption', 'mw_predicted']].tail(20), use_container_width=True)
     elif conso:
         df = pd.DataFrame(conso)
         df['datetime'] = pd.to_datetime(df['datetime'])
         df = df.sort_values('datetime')
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df['datetime'], y=df['mw_conso'],
+        fig.add_trace(go.Scatter(x=df['datetime'], y=df['mw_consumption'],
                                  name='Consommation réelle', line=dict(color='#1f77b4')))
         fig.update_layout(title="Consommation horaire", height=400)
         st.plotly_chart(fig, use_container_width=True)

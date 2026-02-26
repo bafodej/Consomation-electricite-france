@@ -37,7 +37,7 @@ def import_consommation():
     print("Lecture des donnees SQLite...")
     sqlite_engine = get_sqlite_engine()
 
-    df = pd.read_sql_table("consommation", sqlite_engine)
+    df = pd.read_sql_table("consumption", sqlite_engine)
     print(f"  {len(df)} lignes trouvees")
 
     if "source" not in df.columns:
@@ -52,7 +52,7 @@ def import_consommation():
 
     print("Import des donnees...")
     df.to_sql(
-        "consommation",
+        "consumption",
         postgres_engine,
         if_exists="append",
         index=False,
@@ -63,7 +63,7 @@ def import_consommation():
     print("Import termine avec succes")
 
     result = pd.read_sql_query(
-        "SELECT COUNT(*) as total FROM consommation", postgres_engine
+        "SELECT COUNT(*) as total FROM consumption", postgres_engine
     )
     print(f"Total en base PostgreSQL: {result['total'][0]} lignes")
 
@@ -107,7 +107,7 @@ def verify_import():
             ROUND(AVG(mw_conso), 2) as conso_moyenne,
             ROUND(MIN(mw_conso), 2) as conso_min,
             ROUND(MAX(mw_conso), 2) as conso_max
-        FROM consommation
+        FROM consumption
     """,
         postgres_engine,
     )
@@ -122,7 +122,7 @@ def verify_import():
     duplicates = pd.read_sql_query(
         """
         SELECT datetime, COUNT(*) as nb
-        FROM consommation
+        FROM consumption
         GROUP BY datetime
         HAVING COUNT(*) > 1
     """,
