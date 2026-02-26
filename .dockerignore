@@ -39,8 +39,9 @@ mlartifacts/
 *.md
 docs/
 
-# Data
+# Data (sauf le fichier statique des jours fériés)
 data/*.csv
+!data/public_holidays_2026.csv
 
 # Notebooks
 *.ipynb
