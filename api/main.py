@@ -181,6 +181,12 @@ def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+@app.head("/")
+def root_head():
+    """Health check HEAD pour Render.com"""
+    return Response(status_code=200)
+
+
 @app.get("/")
 def root():
     """Endpoint racine - vérification de l'état de l'API"""
