@@ -24,17 +24,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/ ./api/
 COPY src/ ./src/
 COPY database/ ./database/
+COPY data/ ./data/
 COPY ml/models/ ./ml/models/
+COPY entrypoint.sh .
 
 # Créer les répertoires nécessaires
-RUN mkdir -p logs
+RUN mkdir -p logs && chmod +x entrypoint.sh
 
 # Exposer le port de l'API
 EXPOSE 8000
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/')" || exit 1
-
-# Commande de démarrage
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Commande de démarrage : initialise la DB puis lance l'API
+CMD ["./entrypoint.sh"]
